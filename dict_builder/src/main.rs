@@ -50,25 +50,26 @@ fn should_include_file(name: impl AsRef<str>) -> (bool, SourceSize) {
     // Main filtering for spelling categories and their variants.
     (
         match category {
-            "american" => true,
-            "american_variant_1" => true,
-            "american_variant_2" => true,
-            "australian" => true,
-            "australian_variant_1" => true,
-            "australian_variant_2" => true,
-            "british" => true,
-            "british_variant_1" => true,
-            "british_variant_2" => true,
-            "british_z" => true,
-            "british_z_variant_1" => true,
-            "british_z_variant_2" => true,
-            "canadian" => true,
-            "canadian_variant_1" => true,
-            "canadian_variant_2" => true,
-            "english" => true,
-            "variant_1" => true,
-            "variant_2" => true,
-            "variant_3" => true,
+            "american" => false,
+            "american_variant_1" => false,
+            "american_variant_2" => false,
+            "australian" => false,
+            "australian_variant_1" => false,
+            "australian_variant_2" => false,
+            "british" => false,
+            "british_variant_1" => false,
+            "british_variant_2" => false,
+            "british_z" => false,
+            "british_z_variant_1" => false,
+            "british_z_variant_2" => false,
+            "canadian" => false,
+            "canadian_variant_1" => false,
+            "canadian_variant_2" => false,
+            "english" => false,
+            "german" => true,
+            "variant_1" => false,
+            "variant_2" => false,
+            "variant_3" => false,
             _ => panic!("Unknown SCOWL category {category}"),
         },
         size,
@@ -225,9 +226,10 @@ fn main() {
     }
 
     // To help filter out less desired words from SCOWL, we require words to _also_ be in the Wordnik games set.
-    let wordnik_word_list = load_wordnik_set();
-    let mut final_wordlist: BTreeSet<_> =
-        wordnik_word_list.intersection(&scowl_word_list).collect();
+    // let wordnik_word_list = load_wordnik_set();
+    // let mut final_wordlist: BTreeSet<_> =
+    //     wordnik_word_list.intersection(&scowl_word_list).collect();
+    let mut final_wordlist: BTreeSet<_> = scowl_word_list.iter().collect();
 
     let additions = load_additions();
     final_wordlist.extend(additions.iter());
@@ -253,18 +255,7 @@ fn main() {
         .par_iter()
         .map(|word| {
             let frequency = frequency_lookup.get(*word).cloned().unwrap_or(0.0);
-            let links: Vec<_> = final_wordlist
-                .iter()
-                .filter_map(|w| score_extension(*word, *w).map(|score| (w, score)))
-                .collect();
-            let substring_score: usize = links.iter().map(|(_, score)| score).sum();
-
-            for (word, _) in links.into_iter() {
-                _ = backprop_points
-                    .entry(*word)
-                    .or_default()
-                    .add_assign(substring_score);
-            }
+            let substring_score: usize = 10;
 
             (
                 *word,
