@@ -82,7 +82,7 @@ pub async fn create_player(
     referrer: String,
 ) -> Result<Uuid, TruncateServerError> {
     let Some(pool) = &server_state.truncate_db else {
-        return Err(TruncateServerError::DatabaseOffline);
+        return Ok(Uuid::new_v4());
     };
 
     let parsed_ua = UAParser::new().parse(&user_agent);
@@ -136,14 +136,18 @@ pub async fn login(
     screen_height: u32,
     user_agent: String,
 ) -> Result<LoginResponse, TruncateServerError> {
-    let Some(pool) = &server_state.truncate_db else {
-        return Err(TruncateServerError::DatabaseOffline);
-    };
-
     let Ok(authed) = auth_player_token(server_state, token) else {
         return Err(TruncateServerError::InvalidToken);
     };
     let player_id = authed.player();
+
+    let Some(pool) = &server_state.truncate_db else {
+        return Ok(LoginResponse {
+            player_id,
+            authed,
+            unread_changelogs: vec![],
+        });
+    };
 
     struct LoggedInPlayer {
         player_id: Uuid,
@@ -218,7 +222,7 @@ pub async fn mark_changelog_read(
     changelog_id: String,
 ) -> Result<(), TruncateServerError> {
     let Some(pool) = &server_state.truncate_db else {
-        return Err(TruncateServerError::DatabaseOffline);
+        return Ok(());
     };
 
     let player_id = authed.player();
@@ -244,7 +248,7 @@ pub async fn mark_most_changelogs_read(
     unread: Vec<String>,
 ) -> Result<(), TruncateServerError> {
     let Some(pool) = &server_state.truncate_db else {
-        return Err(TruncateServerError::DatabaseOffline);
+        return Ok(());
     };
 
     let player_id = authed.player();

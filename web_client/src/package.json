@@ -2,7 +2,7 @@
   "name": "truncate_landing_page",
   "private": true,
   "scripts": {
-    "start": "eleventy --serve",
+    "start": "npx -y http-server _site -p 8081 -a 0.0.0.0",
     "build": "eleventy"
   },
   "devDependencies": {
