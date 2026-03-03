@@ -254,7 +254,10 @@ fn main() {
     let mut scored_word_list = final_wordlist
         .par_iter()
         .map(|word| {
-            let frequency = frequency_lookup.get(*word).cloned().unwrap_or(0.0);
+            let mut frequency = frequency_lookup.get(*word).cloned().unwrap_or(0.0);
+            if frequency == 0.0 {
+                frequency = 0.99;
+            }
             let substring_score: usize = 10;
 
             (
