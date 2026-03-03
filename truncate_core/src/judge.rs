@@ -356,10 +356,6 @@ impl Judge {
                 };
             }
 
-            if word.as_ref().chars().count() < 2 {
-                return None;
-            }
-
             // Handle the first matching alias we find (others will be handled in the next recursion)
             for (alias, resolved) in &judge.aliases {
                 if word.as_ref().contains(*alias) {

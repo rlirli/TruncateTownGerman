@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{self, read_dir, File},
+    fs::{self, File},
     io::{self, BufRead},
     ops::AddAssign,
     path::PathBuf,
@@ -8,137 +8,47 @@ use std::{
 
 use dashmap::DashMap;
 use rayon::iter::{
-    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
-    IntoParallelRefMutIterator, ParallelIterator,
+    IntoParallelRefIterator,
+    ParallelIterator,
 };
 
-/// This appears to be the best threashold to optimize for valid wordplay while exluding short, "invalid" words.
-const MAX_SCOWL_SIZE: usize = 70;
-
-type SourceSize = usize;
-
-/// Primary determiner for which lists do and do not qualify for inclusion in Truncate's validity dictionary.
-fn should_include_file(name: impl AsRef<str>) -> (bool, SourceSize) {
-    // Currently, special files do not contain any extra Truncate words we desire.
-    if name.as_ref().starts_with("special") {
-        return (false, 0);
-    }
-
-    let (category, rest) = name
-        .as_ref()
-        .split_once('-')
-        .expect("SCOWL files are correctly named");
-    let (sub_category, size) = rest
-        .split_once('.')
-        .expect("SCOWL files are correctly named");
-
-    let size: usize = size.parse().expect("Scowl files are correctly named");
-    if size > MAX_SCOWL_SIZE {
-        return (false, size);
-    }
-
-    // Early exclusion for various classes of word that will never be a valid Truncate word
-    match sub_category {
-        "words" => { /* allowed, continue */ }
-        "abbreviations" => return (false, size),
-        "contractions" => return (false, size),
-        "proper-names" => return (false, size),
-        "upper" => return (false, size),
-        other => panic!("Unknown SCOWL sub-category {other}"),
-    }
-
-    // Main filtering for spelling categories and their variants.
-    (
-        match category {
-            "american" => false,
-            "american_variant_1" => false,
-            "american_variant_2" => false,
-            "australian" => false,
-            "australian_variant_1" => false,
-            "australian_variant_2" => false,
-            "british" => false,
-            "british_variant_1" => false,
-            "british_variant_2" => false,
-            "british_z" => false,
-            "british_z_variant_1" => false,
-            "british_z_variant_2" => false,
-            "canadian" => false,
-            "canadian_variant_1" => false,
-            "canadian_variant_2" => false,
-            "english" => false,
-            "german" => true,
-            "variant_1" => false,
-            "variant_2" => false,
-            "variant_3" => false,
-            _ => panic!("Unknown SCOWL category {category}"),
-        },
-        size,
-    )
+fn clean_german_word(word: &str) -> String {
+    word.to_lowercase()
+        .replace("ä", "ae")
+        .replace("ö", "oe")
+        .replace("ü", "ue")
+        .replace("ß", "ss")
 }
 
-/// Primary determiner for which words do and do not qualify for inclusion in Truncate's validity dictionary.
-fn should_include_word(word: &String, source_size: usize) -> bool {
-    // One-letter words in Truncate can be a surprise, exclude them.
-    if word.len() < 2 {
-        return false;
+fn load_german_data() -> (BTreeMap<String, f32>, BTreeSet<String>) {
+    println!("Loading words and frequencies from de_50k.txt");
+    let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("support_data/de_50k.txt");
+    let file = File::open(file_path).expect("de_50k.txt file should exist");
+    
+    let lines = io::BufReader::new(file).lines().flatten().collect::<Vec<_>>();
+    
+    let mut frequency_lookup = BTreeMap::new();
+    let mut word_set = BTreeSet::new();
+    
+    let total_words = lines.len() as f32;
+    for (i, line) in lines.into_iter().enumerate() {
+        let (word, _) = line.split_once(' ').expect("Word frequency well formed");
+        let cleaned = clean_german_word(word);
+        
+        if cleaned.chars().count() < 2 {
+            continue;
+        }
+        
+        if !cleaned.chars().all(|c| c.is_ascii_lowercase()) {
+            continue;
+        }
+
+        let freq = (total_words - i as f32) / total_words;
+        frequency_lookup.insert(cleaned.clone(), freq);
+        word_set.insert(cleaned);
     }
-    // Truncate is ASCII-only — this also helps cut out proper names and words with punctuation
-    if !word.chars().all(|c| c.is_ascii_lowercase()) {
-        return false;
-    }
-    // Super short words that are more obscure make Truncate less approachable (ex: xu, ai, ki)
-    if word.len() < 3 && source_size > 60 {
-        return false;
-    }
-    return true;
-}
-
-fn load_word_frequencies() -> BTreeMap<String, f32> {
-    println!("Loading word frequencies from file");
-    let frequency_file = File::open(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("support_data/en_word_freqs.txt"),
-    )
-    .expect("support_data/en_word_freqs.txt file should exist");
-    let frequency_lines = io::BufReader::new(frequency_file)
-        .lines()
-        .flatten()
-        .collect::<Vec<_>>();
-
-    let mut frequency_lookup: BTreeMap<String, f32> = BTreeMap::new();
-
-    // Word frequencies are listed in order,
-    // so we can just use enumerate() for the rankings
-    let mut frequencies = frequency_lines
-        .into_par_iter()
-        .enumerate()
-        .map(|(i, wf)| {
-            let (word, _) = wf
-                .split_once(' ')
-                .expect("Word frequencies are well formed");
-            (word.to_string(), i as f32)
-        })
-        .collect::<Vec<_>>();
-
-    let total_words = frequencies.len() as f32;
-    frequencies.par_iter_mut().for_each(|(_, v)| {
-        *v = (total_words - *v) / total_words;
-    });
-
-    frequency_lookup.extend(frequencies);
-
-    println!("Recalculating word frequency counts");
-
-    frequency_lookup
-}
-
-fn load_wordnik_set() -> BTreeSet<String> {
-    println!("Loading wordnik data from file");
-    let wordnik_file = File::open(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("support_data/wordnik_wordlist.txt"),
-    )
-    .expect("support_data/wordnik_wordlist.txt file should exist");
-
-    BTreeSet::from_iter(io::BufReader::new(wordnik_file).lines().flatten())
+    
+    (frequency_lookup, word_set)
 }
 
 fn load_additions() -> BTreeSet<String> {
@@ -154,11 +64,16 @@ fn load_additions() -> BTreeSet<String> {
             .expect("add files should exist")
     });
 
-    BTreeSet::from_iter(
-        files
-            .iter()
-            .flat_map(|f| io::BufReader::new(f).lines().flatten()),
-    )
+    let mut set = BTreeSet::new();
+    for f in files {
+        for line in io::BufReader::new(f).lines().flatten() {
+            let cleaned = clean_german_word(&line);
+            if cleaned.chars().count() >= 2 && cleaned.chars().all(|c| c.is_ascii_lowercase()) {
+                set.insert(cleaned);
+            }
+        }
+    }
+    set
 }
 
 fn load_removals() -> BTreeSet<String> {
@@ -169,11 +84,14 @@ fn load_removals() -> BTreeSet<String> {
             .expect("del files should exist")
     });
 
-    BTreeSet::from_iter(
-        files
-            .iter()
-            .flat_map(|f| io::BufReader::new(f).lines().flatten()),
-    )
+    let mut set = BTreeSet::new();
+    for f in files {
+        for line in io::BufReader::new(f).lines().flatten() {
+            let cleaned = clean_german_word(&line);
+            set.insert(cleaned);
+        }
+    }
+    set
 }
 
 fn load_objectionable() -> Vec<String> {
@@ -200,39 +118,10 @@ fn score_extension(target: &String, larger_word: &String) -> Option<usize> {
 
 fn main() {
     println!("Starting the dict builder");
-    let frequency_lookup = load_word_frequencies();
-
-    println!("Loading candidate wordlists");
-    let files = read_dir(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("support_data/generated_scowl_wordlists/"),
-    )
-    .expect("support_data/generated_scowl_wordlists directory should exist");
-
-    let mut scowl_word_list: BTreeSet<String> = BTreeSet::new();
-
-    for file in files.flatten() {
-        let (included, source_size) = should_include_file(&file.file_name().to_string_lossy());
-
-        if included {
-            println!("Processing {:?} into the word set", file.file_name());
-
-            let spelling_list = File::open(file.path()).unwrap();
-            let spelling_lines = io::BufReader::new(spelling_list).lines().flatten();
-
-            scowl_word_list.extend(spelling_lines.filter(|w| should_include_word(w, source_size)));
-        } else {
-            println!(">> Skipping {:?}", file.file_name());
-        }
-    }
-
-    // To help filter out less desired words from SCOWL, we require words to _also_ be in the Wordnik games set.
-    // let wordnik_word_list = load_wordnik_set();
-    // let mut final_wordlist: BTreeSet<_> =
-    //     wordnik_word_list.intersection(&scowl_word_list).collect();
-    let mut final_wordlist: BTreeSet<_> = scowl_word_list.iter().collect();
+    let (frequency_lookup, mut final_wordlist) = load_german_data();
 
     let additions = load_additions();
-    final_wordlist.extend(additions.iter());
+    final_wordlist.extend(additions.into_iter());
 
     let removals = load_removals();
     for removal in removals {
@@ -248,20 +137,33 @@ fn main() {
         objectionable: bool,
     }
 
-    let backprop_points: DashMap<&String, usize> = DashMap::new();
-    let objectionable = load_objectionable();
+    // Convert BTreeSet to Vec for efficient parallel iteration
+    let final_wordlist_vec: Vec<String> = final_wordlist.into_iter().collect();
 
-    let mut scored_word_list = final_wordlist
+    let backprop_points: DashMap<&String, usize> = DashMap::new();
+    let objectionable: std::collections::HashSet<String> = load_objectionable().into_iter().collect();
+
+    let mut scored_word_list = final_wordlist_vec
         .par_iter()
         .map(|word| {
-            let mut frequency = frequency_lookup.get(*word).cloned().unwrap_or(0.0);
-            if frequency == 0.0 {
-                frequency = 0.99;
+            let frequency = frequency_lookup.get(word).cloned().unwrap_or(0.99);
+
+            let links: Vec<_> = final_wordlist_vec
+                .iter()
+                .filter_map(|w| score_extension(word, w).map(|score| (w, score)))
+                .collect();
+            
+            let substring_score: usize = links.iter().map(|(_, score)| score).sum();
+
+            for (w, score) in links.into_iter() {
+                _ = backprop_points
+                    .entry(w)
+                    .or_default()
+                    .add_assign(score);
             }
-            let substring_score: usize = 10;
 
             (
-                *word,
+                word.clone(),
                 WordData {
                     substring_score,
                     frequency,
