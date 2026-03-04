@@ -3,18 +3,19 @@ const fs = require('fs');
 const readline = require('readline');
 const jsonlines = require('jsonlines');
 const sqlite3 = require('sqlite3').verbose();
+const zlib = require('zlib');
 
-const input_file = path.join(__dirname, "kaikki.org-dictionary-English.json");
+const input_file = path.join(__dirname, "kaikki.org-dictionary-German.json.gz");
 
 if (!fs.existsSync(input_file)) {
     console.error(`Need to build word definitions from a dictionary reference.`);
-    console.error(`Download the English JSON data from https://kaikki.org/dictionary/English/index.html`);
+    console.error(`Download the German JSON data from https://kaikki.org/dictionary/German/`);
     console.error(`And place the file at ${input_file}`);
     process.exit(1);
 }
 
 const rl = readline.createInterface({
-    input: fs.createReadStream(input_file),
+    input: fs.createReadStream(input_file).pipe(zlib.createGunzip()),
     crlfDelay: Infinity
 });
 const parser = jsonlines.parse();
@@ -140,10 +141,12 @@ parser.on('end', () => {
     console.log(`• Writing objectionable words`);
     fs.writeFileSync(`objectionable.json`, JSON.stringify(objectionable_words, null, 2));
 
-    return;
-
     console.log(`• Sorting words`);
     const keys = Object.keys(words).sort();
+
+    console.log(`• Writing valid_german_words.txt`);
+    const valid_words = keys.map(k => k.replace(/_tr$/, ''));
+    fs.writeFileSync(`valid_german_words.txt`, valid_words.join('\n'));
 
     console.log(`• Writing words`);
     const output_db = new sqlite3.Database('defs.db');

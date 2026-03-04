@@ -96,8 +96,8 @@ fn load_removals() -> BTreeSet<String> {
 
 fn load_objectionable() -> Vec<String> {
     let input =
-        fs::read(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("support_data/objectionable.json"))
-            .expect("support_data/objectionable.json should exist");
+        fs::read(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../word_definitions/objectionable.json"))
+            .expect("../word_definitions/objectionable.json should exist");
     serde_json::from_slice(&input[..]).expect("objectionable.json should be the expected JSON")
 }
 
@@ -116,9 +116,30 @@ fn score_extension(target: &String, larger_word: &String) -> Option<usize> {
     None
 }
 
+fn load_valid_german_words() -> std::collections::HashSet<String> {
+    println!("Loading valid German words from dictionary generation list");
+    let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../word_definitions/valid_german_words.txt");
+    
+    let file = File::open(file_path).expect("valid_german_words.txt should exist. Make sure to run `npm start` in word_definitions first!");
+    
+    io::BufReader::new(file)
+        .lines()
+        .flatten()
+        .map(|line| clean_german_word(&line))
+        .filter(|w| w.chars().count() >= 2 && w.chars().all(|c| c.is_ascii_lowercase()))
+        .collect()
+}
+
 fn main() {
     println!("Starting the dict builder");
     let (frequency_lookup, mut final_wordlist) = load_german_data();
+
+    // Filter list using actual definitions
+    let valid_words = load_valid_german_words();
+    let initial_count = final_wordlist.len();
+    final_wordlist.retain(|word| valid_words.contains(word));
+    println!("Filtered out {} words lacking a real definition.", initial_count - final_wordlist.len());
 
     let additions = load_additions();
     final_wordlist.extend(additions.into_iter());
