@@ -8,16 +8,18 @@ services:
     container_name: truncate-citadel
     restart: unless-stopped
     networks:
-      - internal
-      - web-routing
+      - internal # <--- Talks to DB here
+      - web-routing # <--- Talks to Traefik here
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=web-routing" # <--- THE FIX
       - "traefik.http.routers.truncate-citadel.rule=Host(`truncate.igbekele.de`) && PathPrefix(`/ws`)"
       - "traefik.http.routers.truncate-citadel.entrypoints=websecure"
       - "traefik.http.routers.truncate-citadel.tls.certresolver=myresolver"
       - "traefik.http.services.truncate-citadel.loadbalancer.server.port=8080"
     environment:
       - DATABASE_URL=postgres://truncate:truncate@db:5432/truncate
+      - RUST_LOG=debug
     depends_on:
       - db
 
@@ -26,7 +28,7 @@ services:
     container_name: truncate-db
     restart: unless-stopped
     networks:
-      - internal
+      - internal # <--- Only on internal network! Isolated from the web.
     environment:
       POSTGRES_USER: truncate
       POSTGRES_PASSWORD: truncate
@@ -43,10 +45,10 @@ services:
     container_name: truncate-client
     restart: unless-stopped
     networks:
-      - internal
-      - web-routing
+      - web-routing # <--- Only needs Traefik access
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=web-routing"
       - "traefik.http.routers.truncate-client.rule=Host(`truncate.igbekele.de`)"
       - "traefik.http.routers.truncate-client.entrypoints=websecure"
       - "traefik.http.routers.truncate-client.tls.certresolver=myresolver"
