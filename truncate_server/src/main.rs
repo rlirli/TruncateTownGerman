@@ -734,21 +734,7 @@ async fn handle_player_msg(
                     .unwrap();
             }
             Err(_) => {
-                let new_player = uuid::Uuid::new_v4();
-                let authed_token = accounts::get_player_token(&server_state, new_player);
-
-                let mut connection_info = connection_info_mutex.lock();
-                connection_info.player = Some(authed_token.clone());
-
-                server_state
-                    .send_to_player(
-                        &player_addr,
-                        GameMessage::LoggedInAs {
-                            token: authed_token.token(),
-                            unread_changelogs: vec![],
-                        },
-                    )
-                    .unwrap();
+                todo!("Error handling for database actions");
             }
         },
         Login {
@@ -788,25 +774,10 @@ async fn handle_player_msg(
                     .unwrap();
             }
             Err(_e) => {
-                if let Ok(authed) = accounts::auth_player_token(&server_state, player_token.clone()) {
-                    let mut connection_info = connection_info_mutex.lock();
-                    connection_info.player = Some(authed);
-
-                    server_state
-                        .send_to_player(
-                            &player_addr,
-                            GameMessage::LoggedInAs {
-                                token: player_token,
-                                unread_changelogs: vec![],
-                            },
-                        )
-                        .unwrap();
-                } else {
-                    eprintln!(
-                        "Player tried to login with a bad token and failed ! ! ! ! ! ! ! ! ! ! !"
-                    );
-                    return player_err("Invalid Token".into());
-                }
+                eprintln!(
+                    "Player tried to login with a bad token and failed ! ! ! ! ! ! ! ! ! ! !"
+                );
+                return player_err("Invalid Token".into());
             }
         },
         LoadDailyPuzzle(token, day) => {

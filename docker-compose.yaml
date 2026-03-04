@@ -1,24 +1,49 @@
 services:
   citadel:
-    build:
-      context: .
-      dockerfile: Dockerfile.citadel
+    # build:
+    #   context: ./Truncate
+    #   dockerfile: Dockerfile.citadel
+
+    image: ghcr.io/rlirli/truncate-citadel:latest
+    container_name: truncate-citadel
     restart: unless-stopped
     networks:
+      - internal
       - web-routing
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.truncate-citadel.rule=Host(`truncate.igbekele.de`) && PathPrefix(`/ws`)"
       - "traefik.http.routers.truncate-citadel.entrypoints=websecure"
-      - "traefik.http.routers.truncate-citadel.tls.myresolver=letsencrypt"
+      - "traefik.http.routers.truncate-citadel.tls.certresolver=myresolver"
       - "traefik.http.services.truncate-citadel.loadbalancer.server.port=8080"
+    environment:
+      - DATABASE_URL=postgres://truncate:truncate@db:5432/truncate
+    depends_on:
+      - db
 
-  client:
-    build:
-      context: .
-      dockerfile: Dockerfile.client
+  db:
+    image: postgres:15-alpine
+    container_name: truncate-db
     restart: unless-stopped
     networks:
+      - internal
+    environment:
+      POSTGRES_USER: truncate
+      POSTGRES_PASSWORD: truncate
+      POSTGRES_DB: truncate
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  client:
+    # build:
+    #   context: ./Truncate
+    #   dockerfile: Dockerfile.client
+
+    image: ghcr.io/rlirli/truncate-client:latest
+    container_name: truncate-client
+    restart: unless-stopped
+    networks:
+      - internal
       - web-routing
     labels:
       - "traefik.enable=true"
@@ -28,5 +53,10 @@ services:
       - "traefik.http.services.truncate-client.loadbalancer.server.port=80"
 
 networks:
+  internal:
+    internal: true
   web-routing:
     external: true
+
+volumes:
+  db-data:
