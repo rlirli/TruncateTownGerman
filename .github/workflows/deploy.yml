@@ -58,6 +58,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          port: 2222
           script: |
             # This triggers the specific command we locked to the SSH key
             # No extra commands needed here because the server forces the deploy!
