@@ -19,6 +19,7 @@ services:
       - "traefik.http.services.truncate-citadel.loadbalancer.server.port=8080"
     environment:
       - DATABASE_URL=postgres://truncate:truncate@db:5432/truncate
+      - SIGNING_SECRET=b0ea784ddf88ddd51cb4486e55a126604e4451c299046613646772563b035f68
       - RUST_LOG=debug
     depends_on:
       - db
