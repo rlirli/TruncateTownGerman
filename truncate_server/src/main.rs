@@ -773,9 +773,9 @@ async fn handle_player_msg(
                     )
                     .unwrap();
             }
-            Err(_e) => {
+            Err(e) => {
                 eprintln!(
-                    "Player tried to login with a bad token and failed ! ! ! ! ! ! ! ! ! ! !"
+                   "Player tried to login with a bad token and failed ! ! ! ! ! ! ! ! ! ! ! {:?}", e
                 );
                 return player_err("Invalid Token".into());
             }
@@ -1051,6 +1051,8 @@ async fn main() -> Result<(), IoError> {
 
         let pool = PgPoolOptions::new()
             .max_connections(5)
+            .test_before_acquire(true)
+            .idle_timeout(std::time::Duration::from_secs(120))
             .connect(&db_url)
             .await
             .expect("Database should be alive");

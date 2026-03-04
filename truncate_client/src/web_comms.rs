@@ -159,6 +159,15 @@ pub async fn connect(
                         // recreate the connection.
                         *most_recent_game_token.lock().unwrap() = Some(token.to_string());
                     }
+                    GameMessage::LoggedInAs { token, .. } => {
+                        *most_recent_login.lock().unwrap() = Some(PlayerMessage::Login {
+                            player_token: token.clone(),
+                            screen_width: 0,
+                            screen_height: 0,
+                            user_agent: "reconnect".to_string(),
+                            referrer: "".to_string(),
+                        });
+                    }
                     _ => { /* no processing needed */ }
                 }
 
