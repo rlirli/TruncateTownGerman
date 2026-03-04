@@ -55,9 +55,7 @@ fn load_additions() -> BTreeSet<String> {
     println!("Loading additional data from files");
 
     let files = [
-        "support_data/tranche_1_add.txt",
-        "support_data/tranche_2_add.txt",
-        "support_data/tranche_3_add.txt",
+        "support_data/tranche_german_1_add.txt"
     ]
     .map(|f| {
         File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(f))
@@ -79,7 +77,9 @@ fn load_additions() -> BTreeSet<String> {
 fn load_removals() -> BTreeSet<String> {
     println!("Loading removal data from files");
 
-    let files = ["support_data/tranche_3_del.txt"].map(|f| {
+    let files = [
+        "support_data/tranche_german_1_del.txt"
+    ].map(|f| {
         File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(f))
             .expect("del files should exist")
     });
