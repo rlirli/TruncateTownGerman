@@ -32,6 +32,8 @@ jobs:
           file: ./Dockerfile.client
           push: true
           tags: ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha,scope=client
+          cache-to: type=gha,mode=max,scope=client
 
   deploy:
     needs: build-and-push

@@ -1,5 +1,9 @@
-FROM rust:latest as build
+############################
+# 1️⃣ Builder Image
+############################
+FROM rust:1.93.1 as build
 
+# ---- System deps (rarely change → high cache value) ----
 RUN apt-get update && apt-get install -y \
     libssl-dev \
     pkg-config \
@@ -7,62 +11,109 @@ RUN apt-get update && apt-get install -y \
     cmake \
     curl \
     git \
-    jq
+    jq \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install latest binaryen release
+# ---- Binaryen (pinned version → stable cache) ----
+ARG BINARYEN_VERSION=123
 RUN mkdir -p /tmp/binaryen \
-    && curl -L https://github.com/WebAssembly/binaryen/releases/download/version_123/binaryen-version_123-x86_64-linux.tar.gz -o /tmp/binaryen.tar.gz \
+    && curl -L https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/binaryen-version_${BINARYEN_VERSION}-x86_64-linux.tar.gz -o /tmp/binaryen.tar.gz \
     && tar -xzf /tmp/binaryen.tar.gz -C /tmp/binaryen --strip-components=1 \
     && cp -r /tmp/binaryen/bin/* /usr/local/bin/ \
-    && cp -r /tmp/binaryen/lib/* /usr/local/lib/ \
-    && cp -r /tmp/binaryen/include/* /usr/local/include/ \
     && rm -rf /tmp/binaryen /tmp/binaryen.tar.gz
 
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-RUN apt-get install -y nodejs
+# ---- Node (pinned major) ----
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-# Keep this wasm-bindgen-cli version aligned with the latest egui release's dependency
-RUN cargo install -f wasm-bindgen-cli  --version 0.2.100
+# ---- Rust WASM tooling (expensive → cache aggressively) ----
 RUN rustup target add wasm32-unknown-unknown
+RUN cargo install wasm-bindgen-cli --version 0.2.100 --locked
+RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-RUN mkdir /app
 WORKDIR /app
 
-ARG TR_COMMIT
-ENV TR_COMMIT=$TR_COMMIT
-ARG TR_MSG
-ENV TR_MSG=$TR_MSG
-ARG TR_ENV
-ENV TR_ENV=$TR_ENV
+############################
+# 2️⃣ Dependency Layer
+# Only copy manifests first
+############################
 
-ADD truncate_server /app/truncate_server
-ADD truncate_client /app/truncate_client
-ADD truncate_dueller /app/truncate_dueller
-ADD truncate_core /app/truncate_core
-ADD dict_builder /app/dict_builder
-ADD Cargo.* /app
+# Root manifests
+COPY Cargo.toml Cargo.lock ./
 
-ADD web_client /app/web_client
-ADD .backstage /app/.backstage
+# Crate manifests (NOT source yet)
+COPY truncate_server/Cargo.toml truncate_server/
+COPY truncate_client/Cargo.toml truncate_client/
+COPY truncate_dueller/Cargo.toml truncate_dueller/
+COPY truncate_core/Cargo.toml truncate_core/
+COPY dict_builder/Cargo.toml dict_builder/
+
+# Fake minimal source to allow dependency resolution
+RUN mkdir -p truncate_server/src truncate_client/src truncate_dueller/src truncate_core/src dict_builder/src \
+    && echo "fn main(){}" > truncate_server/src/main.rs \
+    && echo "fn main(){}" > truncate_client/src/main.rs \
+    && echo "fn main(){}" > truncate_dueller/src/main.rs \
+    && echo "" > truncate_core/src/lib.rs \
+    && echo "fn main(){}" > dict_builder/src/main.rs
+
+# Pre-build deps only
+RUN cargo build --release --locked || true
+
+# Clean dummy source
+RUN rm -rf truncate_server/src truncate_client/src truncate_dueller/src truncate_core/src dict_builder/src
+
+############################
+# 3️⃣ Real Source Code
+############################
+
+COPY truncate_server truncate_server
+COPY truncate_client truncate_client
+COPY truncate_dueller truncate_dueller
+COPY truncate_core truncate_core
+COPY dict_builder dict_builder
+
+COPY web_client web_client
+COPY .backstage .backstage
+
 RUN chmod +x .backstage/build-web-client.sh
+
+############################
+# 4️⃣ Commit Metadata (LATE!)
+############################
+
+ARG TR_COMMIT
+ARG TR_MSG
+ARG TR_ENV
+
+ENV TR_COMMIT=$TR_COMMIT
+ENV TR_MSG=$TR_MSG
+ENV TR_ENV=$TR_ENV
 ENV TRUNC_OPT=true
+
+# Only this layer invalidates when commit changes
 RUN .backstage/build-web-client.sh
 
-# Thin Docker image for runtime
+############################
+# 5️⃣ Runtime Image
+############################
 
 FROM debian:bullseye-slim
 
-RUN apt-get update && apt-get install -y curl debian-keyring debian-archive-keyring apt-transport-https \
+RUN apt-get update && apt-get install -y \
+    curl \
+    debian-keyring \
+    debian-archive-keyring \
+    apt-transport-https \
     && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \
     && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list \
-    && apt update \
-    && apt install caddy
+    && apt-get update \
+    && apt-get install -y caddy \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir /app
 WORKDIR /app
 
-ADD Caddyfile /app
-COPY --from=build /app/web_client/src/_site /app/web_client
+COPY Caddyfile .
+COPY --from=build /app/web_client/src/_site ./web_client
 
-CMD caddy run
+CMD ["caddy", "run"]

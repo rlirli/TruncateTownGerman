@@ -39,6 +39,8 @@ jobs:
           file: ./Dockerfile.client
           push: true
           tags: ${{ env.IMAGE_NAME_CLIENT }}:latest
+          cache-from: type=gha,scope=client
+          cache-to: type=gha,mode=max,scope=client
 
       - name: Build and push Citadel
         uses: docker/build-push-action@v5
@@ -47,6 +49,8 @@ jobs:
           file: ./Dockerfile.citadel
           push: true
           tags: ${{ env.IMAGE_NAME_CITADEL }}:latest
+          cache-from: type=gha,scope=citadel
+          cache-to: type=gha,mode=max,scope=citadel
 
   deploy:
     needs: build-and-push
