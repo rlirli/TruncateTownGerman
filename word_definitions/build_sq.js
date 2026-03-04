@@ -44,20 +44,30 @@ const objectionable_tags = [
     "slur",
 ];
 
+const cleanGermanWord = (word) => {
+    return word.toLowerCase()
+        .replace(/ä/g, 'ae')
+        .replace(/ö/g, 'oe')
+        .replace(/ü/g, 'ue')
+        .replace(/ß/g, 'ss');
+};
+
 const writeWord = (word_json) => {
+    const cleaned_word = cleanGermanWord(word_json.word);
+
     // Skip words with whitespace, or punctuation
-    if (/[^a-zA-Z]/.test(word_json.word)) {
+    if (/[^a-zA-Z]/.test(cleaned_word)) {
         skipped += 1;
         return;
     };
 
     const out_obj = {
-        word: word_json.word.toLowerCase(),
+        word: cleaned_word,
         pos: word_json.pos,
         defs: word_json.senses.flatMap(sense => sense.raw_glosses || sense.glosses || []),
         tags: word_json.senses.flatMap(sense => [...(sense.tags ?? []), ...(sense.links ?? []).map(link => link[0])]),
-        roots: word_json.senses.flatMap(sense => [...(sense.form_of ?? []).map(form => form.word)]),
-        forms: (word_json.forms ?? []).flatMap(form => form.form),
+        roots: word_json.senses.flatMap(sense => [...(sense.form_of ?? []).map(form => cleanGermanWord(form.word))]),
+        forms: (word_json.forms ?? []).flatMap(form => cleanGermanWord(form.form)),
         objectionable: false,
     };
 
