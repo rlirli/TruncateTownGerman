@@ -1,0 +1,32 @@
+services:
+  citadel:
+    build:
+      context: .
+      dockerfile: Dockerfile.citadel
+    restart: unless-stopped
+    networks:
+      - web-routing
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.truncate-citadel.rule=Host(`truncate.igbekele.de`) && PathPrefix(`/ws`)"
+      - "traefik.http.routers.truncate-citadel.entrypoints=websecure"
+      - "traefik.http.routers.truncate-citadel.tls.myresolver=letsencrypt"
+      - "traefik.http.services.truncate-citadel.loadbalancer.server.port=8080"
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    restart: unless-stopped
+    networks:
+      - web-routing
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.truncate-client.rule=Host(`truncate.igbekele.de`)"
+      - "traefik.http.routers.truncate-client.entrypoints=websecure"
+      - "traefik.http.routers.truncate-client.tls.certresolver=myresolver"
+      - "traefik.http.services.truncate-client.loadbalancer.server.port=80"
+
+networks:
+  web-routing:
+    external: true

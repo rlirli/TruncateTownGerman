@@ -17,7 +17,7 @@ use app_outer::OuterApplication;
 fn main() {
     let connect_addr = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "wss://citadel.truncate.town".into());
+        .unwrap_or_else(|| "wss://truncate.igbekele.de/ws".into());
 
     let (tx_game, rx_game) = mpsc::channel(2048);
     let (tx_player, rx_player) = mpsc::channel(2048);

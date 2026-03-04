@@ -72,7 +72,7 @@ impl WebHandle {
         let (tx_context, rx_context) = oneshot::channel();
 
         let connect_url = if server_url.is_empty() {
-            "wss://citadel.truncate.town"
+            "wss://truncate.igbekele.de/ws"
         } else {
             server_url
         };

@@ -1130,7 +1130,7 @@
 
                     function on_wasm_loaded() {
                         console.debug("Loaded Truncate webassembly");
-                        const default_server = window.location.host.includes("outpost") ? "wss://coup.truncate.town" : "wss://citadel.truncate.town";
+                        const default_server = "wss://truncate.igbekele.de/ws";
                         const local_server = window.location.host.includes("localhost") ? "ws://0.0.0.0:8080" : null;
                         const server = new URLSearchParams(window.location.search).get("server") ?? local_server ?? default_server;
 
