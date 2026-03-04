@@ -29,15 +29,26 @@ impl ActiveGame {
         let mut msg = None;
         let companion_space = 220.0;
 
-        let control_anchor = if !matches!(self.depot.ui_state.game_header, HeaderType::None) {
+        let mut keyboard_offset = 0.0;
+        if self.depot.ui_state.is_mobile && self.depot.ui_state.dictionary_focused {
+            keyboard_offset = 320.0; 
+        }
+        let animated_keyboard_offset = ui.ctx().animate_value_with_time(
+            egui::Id::new("keyboard_offset"),
+            keyboard_offset,
+            self.depot.aesthetics.theme.animation_time,
+        );
+
+        let mut control_anchor = if !matches!(self.depot.ui_state.game_header, HeaderType::None) {
             vec2(0.0, 0.0)
         } else {
             vec2(0.0, -companion_space)
         };
+        control_anchor.y -= animated_keyboard_offset;
 
         if matches!(self.depot.ui_state.game_header, HeaderType::None) {
             let mut companion_pos = ui.available_rect_before_wrap();
-            companion_pos.set_top(companion_pos.bottom() - companion_space);
+            companion_pos.set_top(companion_pos.bottom() - companion_space - animated_keyboard_offset);
             self.depot.regions.hand_companion_rect = Some(companion_pos);
         }
 
@@ -54,7 +65,7 @@ impl ActiveGame {
                         .regions
                         .hand_total_rect
                         .map(|r| r.height())
-                        .unwrap_or_default(),
+                        .unwrap_or_default() + animated_keyboard_offset,
                 ),
             );
         error_area.show(ui.ctx(), |ui| {
