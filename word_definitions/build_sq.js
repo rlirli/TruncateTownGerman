@@ -1,11 +1,10 @@
 const path = require('path');
 const fs = require('fs');
 const readline = require('readline');
-const jsonlines = require('jsonlines');
 const sqlite3 = require('sqlite3').verbose();
 const zlib = require('zlib');
 
-const input_file = path.join(__dirname, "kaikki.org-dictionary-German.json.gz");
+const input_file = path.join(__dirname, "kaikki.org-dictionary-German-DE.jsonl.gz");
 
 if (!fs.existsSync(input_file)) {
     console.error(`Need to build word definitions from a dictionary reference.`);
@@ -18,7 +17,6 @@ const rl = readline.createInterface({
     input: fs.createReadStream(input_file).pipe(zlib.createGunzip()),
     crlfDelay: Infinity
 });
-const parser = jsonlines.parse();
 
 let written = 0;
 let skipped = 0;
@@ -104,21 +102,18 @@ const writeWord = (word_json) => {
     }
 }
 
-parser.on('data', function (data) {
-    writeWord(data);
-});
-
 rl.on('line', (line) => {
     writable += 1;
-    parser.write(line);
-    parser.write(`\n`);
+    try {
+        const data = JSON.parse(line);
+        writeWord(data);
+    } catch (e) {
+        // Skip erroneous lines (e.g. malformed JSON) instead of crashing
+        skipped += 1;
+    }
 });
 
 rl.on('close', () => {
-    parser.end();
-});
-
-parser.on('end', () => {
     console.log(`\n-------------\n`);
 
     console.log(`• Mapping objectionable words`);
@@ -177,17 +172,17 @@ parser.on('end', () => {
             });
         }
     });
-    output_db.close();
+    output_db.close(() => {
+        console.log(`\n-------------\n`);
 
-    console.log(`\n-------------\n`);
-
-    console.log(`• Ingested ${writable} words`);
-    console.log(`• Processed ${written} words`);
-    console.log(`• Skipped ${skipped} words`);
-    console.log(`• Total processed ${written + skipped} words`);
-    console.log(`• Total output ${keys.length} words`);
-    if (written + skipped !== writable) {
-        console.error(`ERR: Didn't process all words.`);
-        process.exit(1);
-    }
+        console.log(`• Ingested ${writable} words`);
+        console.log(`• Processed ${written} words`);
+        console.log(`• Skipped ${skipped} words`);
+        console.log(`• Total processed ${written + skipped} words`);
+        console.log(`• Total output ${keys.length} words`);
+        if (written + skipped !== writable) {
+            console.error(`ERR: Didn't process all words.`);
+            process.exit(1);
+        }
+    });
 });
