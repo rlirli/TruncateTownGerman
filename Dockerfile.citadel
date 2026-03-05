@@ -1,84 +1,40 @@
-############################
-# 1️⃣ Builder
-############################
 FROM rust:1.93.1 as build
 
-# ---- System deps (rarely change) ----
 RUN apt-get update && apt-get install -y \
     libssl-dev \
     pkg-config \
     build-essential \
     cmake \
     curl \
-    git \
-    libsqlite3-dev \
-    && rm -rf /var/lib/apt/lists/*
+    git 
 
+RUN mkdir /app
 WORKDIR /app
 
-ENV SQLX_OFFLINE=true
-
-############################
-# 2️⃣ Dependency Layer
-############################
-
-# Copy root manifests first
-COPY Cargo.toml Cargo.lock ./
-
-# Copy crate manifests only
-COPY truncate_server/Cargo.toml truncate_server/
-COPY truncate_core/Cargo.toml truncate_core/
-COPY dict_builder/Cargo.toml dict_builder/
-
-# Dummy source to build dependency graph
-RUN mkdir -p truncate_server/src truncate_core/src dict_builder/src \
-    && echo "fn main(){}" > truncate_server/src/main.rs \
-    && echo "" > truncate_core/src/lib.rs \
-    && echo "fn main(){}" > dict_builder/src/main.rs
-
-# Pre-build dependencies
-RUN cargo build --release --locked || true
-
-# Remove dummy source
-RUN rm -rf truncate_server/src truncate_core/src dict_builder/src
-
-############################
-# 3️⃣ Real Source
-############################
-
-COPY truncate_server truncate_server
-COPY truncate_core truncate_core
-COPY dict_builder dict_builder
-
-############################
-# 4️⃣ Commit Metadata (Late!)
-############################
-
 ARG TR_COMMIT
-ARG TR_MSG
-ARG TR_ENV
-
 ENV TR_COMMIT=$TR_COMMIT
+ARG TR_MSG
 ENV TR_MSG=$TR_MSG
+ARG TR_ENV
 ENV TR_ENV=$TR_ENV
+ENV SQLX_OFFLINE="true"
 
-# Final build (only this invalidates per commit)
-RUN cd truncate_server && cargo build --release --locked
+ADD truncate_server /app/truncate_server
+ADD truncate_core /app/truncate_core
+ADD dict_builder /app/dict_builder
 
-############################
-# 5️⃣ Runtime
-############################
+RUN cd truncate_server && cargo build --release
+
+# Thin Docker image for runtime
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y sqlite3 \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /truncate
+RUN apt-get update && apt-get install -y sqlite3
 
 COPY --from=build /app/truncate_server/target/release/truncate_server /usr/local/bin/
 
-COPY word_definitions/defs.db.gz ./defs.db.gz
-RUN gunzip defs.db.gz
+RUN mkdir /truncate
+ADD word_definitions/defs.db.gz /truncate/defs.db.gz
+RUN gunzip /truncate/defs.db.gz
 
-CMD ["truncate_server"]
+CMD truncate_server
