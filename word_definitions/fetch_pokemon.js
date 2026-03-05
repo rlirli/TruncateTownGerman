@@ -12,11 +12,17 @@
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
+const zlib = require('zlib');
 
 const MAX_ID = 251;
 const BATCH_SIZE = 20; // concurrent fetches to be polite to the API
-const DB_PATH = path.join(__dirname, 'local_defs.db');
+const LOCAL_DB_PATH = path.join(__dirname, 'local_defs.db');
+const RELEASE_DB_GZ_PATH = path.join(__dirname, 'defs.db.gz');
+const RELEASE_DB_PATH = path.join(__dirname, 'defs.db');
 const NAMES_OUTPUT = path.join(__dirname, 'pokemon_names.txt');
+const TRANCHE_OUTPUT = path.join(__dirname, '..', 'dict_builder', 'support_data', 'tranche_german_1_add.txt');
+
+const RELEASE_MODE = process.argv.includes('--release');
 
 const cleanGermanWord = (word) => {
     return word.toLowerCase()
@@ -94,6 +100,44 @@ function getGermanTypeName(typeName) {
         'fairy': 'Fee',
     };
     return typeMap[typeName] || typeName;
+}
+
+async function insertIntoDb(dbPath, pokemonList) {
+    console.log(`\nInserting definitions into ${dbPath}...`);
+
+    if (!fs.existsSync(dbPath)) {
+        console.error(`ERROR: ${dbPath} does not exist.`);
+        process.exit(1);
+    }
+
+    const db = new sqlite3.Database(dbPath);
+
+    await new Promise((resolve, reject) => {
+        db.serialize(() => {
+            const stmt = db.prepare(`INSERT OR REPLACE INTO words (word, definitions) VALUES (?, ?)`);
+
+            for (const p of pokemonList) {
+                const defJson = JSON.stringify([{
+                    word: p.cleanedName,
+                    pos: "noun",
+                    defs: [p.definition],
+                    tags: ["Pokémon"],
+                    roots: [],
+                    forms: [],
+                    objectionable: false,
+                }]);
+                stmt.run(p.cleanedName, defJson);
+            }
+
+            stmt.finalize((err) => {
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+    });
+
+    db.close();
+    console.log(`Inserted ${pokemonList.length} definitions into ${dbPath}`);
 }
 
 async function main() {
@@ -183,57 +227,58 @@ async function main() {
         }
     }
 
-    // 1. Write pokemon_names.txt
+    // 1. Write pokemon_names.txt and tranche file
     const nameLines = validPokemon.map(p => p.cleanedName);
-    fs.writeFileSync(NAMES_OUTPUT, nameLines.join('\n') + '\n');
+    const namesContent = nameLines.join('\n') + '\n';
+    fs.writeFileSync(NAMES_OUTPUT, namesContent);
     console.log(`\nWrote ${nameLines.length} names to ${NAMES_OUTPUT}`);
 
-    // 2. Insert into local_defs.db
-    console.log(`\nInserting definitions into ${DB_PATH}...`);
+    fs.writeFileSync(TRANCHE_OUTPUT, namesContent);
+    console.log(`Wrote ${nameLines.length} names to ${TRANCHE_OUTPUT}`);
 
-    if (!fs.existsSync(DB_PATH)) {
-        console.error(`ERROR: ${DB_PATH} does not exist. Run 'npm start' in word_definitions first!`);
-        process.exit(1);
+    // 2. Insert into local_defs.db
+    await insertIntoDb(LOCAL_DB_PATH, validPokemon);
+
+    // 3. Optionally insert into production defs.db.gz
+    if (RELEASE_MODE) {
+        console.log(`\n=== RELEASE MODE ===`);
+        console.log(`Decompressing ${RELEASE_DB_GZ_PATH}...`);
+
+        if (!fs.existsSync(RELEASE_DB_GZ_PATH)) {
+            console.error(`ERROR: ${RELEASE_DB_GZ_PATH} does not exist. Run 'npm start' in word_definitions first!`);
+            process.exit(1);
+        }
+
+        // Decompress defs.db.gz -> defs.db
+        const compressed = fs.readFileSync(RELEASE_DB_GZ_PATH);
+        const decompressed = zlib.gunzipSync(compressed);
+        fs.writeFileSync(RELEASE_DB_PATH, decompressed);
+        console.log(`Decompressed to ${RELEASE_DB_PATH}`);
+
+        // Insert into decompressed defs.db
+        await insertIntoDb(RELEASE_DB_PATH, validPokemon);
+
+        // Re-gzip defs.db -> defs.db.gz
+        console.log(`Re-compressing ${RELEASE_DB_PATH}...`);
+        const updatedDb = fs.readFileSync(RELEASE_DB_PATH);
+        const recompressed = zlib.gzipSync(updatedDb);
+        fs.writeFileSync(RELEASE_DB_GZ_PATH, recompressed);
+        console.log(`Wrote ${RELEASE_DB_GZ_PATH}`);
+
+        // Clean up uncompressed defs.db
+        fs.unlinkSync(RELEASE_DB_PATH);
+        console.log(`Cleaned up ${RELEASE_DB_PATH}`);
+    } else {
+        console.log(`\nSkipping release DB update (use --release to update defs.db.gz)`);
     }
 
-    const db = new sqlite3.Database(DB_PATH);
-
-    await new Promise((resolve, reject) => {
-        db.serialize(() => {
-            const stmt = db.prepare(`INSERT OR REPLACE INTO words (word, definitions) VALUES (?, ?)`);
-
-            for (const p of validPokemon) {
-                const defJson = JSON.stringify([{
-                    word: p.cleanedName,
-                    pos: "noun",
-                    defs: [p.definition],
-                    tags: ["Pokémon"],
-                    roots: [],
-                    forms: [],
-                    objectionable: false,
-                }]);
-                stmt.run(p.cleanedName, defJson);
-            }
-
-            stmt.finalize((err) => {
-                if (err) reject(err);
-                else resolve();
-            });
-        });
-    });
-
-    db.close();
-    console.log(`Inserted ${validPokemon.length} definitions into local_defs.db`);
-
-    // 3. Summary
+    // 4. Summary
     console.log(`\n=== Summary ===`);
     console.log(`Total fetched: ${results.length}`);
     console.log(`Valid names: ${validPokemon.length}`);
     console.log(`Skipped: ${skippedPokemon.length}`);
-    console.log(`\nNext steps:`);
-    console.log(`  1. Copy names: cat ${NAMES_OUTPUT}`);
-    console.log(`  2. Paste into dict_builder/support_data/tranche_german_1_add.txt`);
-    console.log(`  3. Rebuild dict: cd dict_builder && cargo run`);
+    console.log(`Release mode: ${RELEASE_MODE ? 'YES' : 'no'}`);
+    console.log(`\nNext step: cd dict_builder && cargo run`);
 }
 
 main().catch(err => {
