@@ -20,10 +20,10 @@ module.exports = function () {
         "license_url": "http://scripts.sil.org/OFL"
       },
       {
-        "name": "at01",
-        "url": "https://grafxkid.itch.io/at01",
-        "author": "GrafxKid",
-        "author_url": "https://grafxkid.itch.io/",
+        "name": "m5x7",
+        "url": "https://managore.itch.io/m5x7",
+        "author": "Daniel Linssen",
+        "author_url": "https://managore.itch.io/",
         "license": "CC0 1.0",
         "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
       }
