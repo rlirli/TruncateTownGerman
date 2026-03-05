@@ -21,9 +21,9 @@ fn clean_german_word(word: &str) -> String {
 }
 
 fn load_german_data() -> (BTreeMap<String, f32>, BTreeSet<String>) {
-    println!("Loading words and frequencies from de_50k.txt");
-    let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("support_data/de_50k.txt");
-    let file = File::open(file_path).expect("de_50k.txt file should exist");
+    println!("Loading words and frequencies from de_full.txt");
+    let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("support_data/de_full.txt");
+    let file = File::open(file_path).expect("de_full.txt file should exist");
     
     let lines = io::BufReader::new(file).lines().flatten().collect::<Vec<_>>();
     
