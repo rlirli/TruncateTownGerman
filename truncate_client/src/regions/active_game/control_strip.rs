@@ -275,6 +275,8 @@ impl ActiveGame {
                                     } else {
                                         self.depot.ui_state.dictionary_open = true;
                                         self.depot.ui_state.dictionary_focused = false;
+                                        // directly enter typing mode, effectively hiding the "Search" placeholder string
+                                        self.depot.ui_state.dictionary_opened_by_keyboard = true;
                                     }
                                 }
                             }
