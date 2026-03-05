@@ -18,6 +18,17 @@ use crate::{
 use super::{ActiveGame, GameLocation, HeaderType};
 
 impl ActiveGame {
+    fn get_virtual_keyboard_offset(&self) -> f32 {
+        if self.depot.ui_state.is_mobile
+            && self.depot.ui_state.is_touch
+            && self.depot.ui_state.dictionary_focused
+        {
+            320.0 // good offset for iPhone 14 in portrait mode (bad in landscape)
+        } else {
+            0.0
+        }
+    }
+
     pub fn render_control_strip(
         &mut self,
         ui: &mut egui::Ui,
@@ -29,13 +40,10 @@ impl ActiveGame {
         let mut msg = None;
         let companion_space = 220.0;
 
-        let mut keyboard_offset = 0.0;
-        if self.depot.ui_state.is_mobile && self.depot.ui_state.is_touch && self.depot.ui_state.dictionary_focused {
-            keyboard_offset = 320.0; 
-        }
-        let animated_keyboard_offset = ui.ctx().animate_value_with_time(
-            egui::Id::new("keyboard_offset"),
-            keyboard_offset,
+        let virtual_keyboard_offset = self.get_virtual_keyboard_offset();
+        let animated_virtual_keyboard_offset = ui.ctx().animate_value_with_time(
+            egui::Id::new("virtual_keyboard_offset"),
+            virtual_keyboard_offset,
             self.depot.aesthetics.theme.animation_time,
         );
 
@@ -44,11 +52,13 @@ impl ActiveGame {
         } else {
             vec2(0.0, -companion_space)
         };
-        control_anchor.y -= animated_keyboard_offset;
+        control_anchor.y -= animated_virtual_keyboard_offset;
 
         if matches!(self.depot.ui_state.game_header, HeaderType::None) {
             let mut companion_pos = ui.available_rect_before_wrap();
-            companion_pos.set_top(companion_pos.bottom() - companion_space - animated_keyboard_offset);
+            companion_pos.set_top(
+                companion_pos.bottom() - companion_space - animated_virtual_keyboard_offset,
+            );
             self.depot.regions.hand_companion_rect = Some(companion_pos);
         }
 
@@ -65,7 +75,8 @@ impl ActiveGame {
                         .regions
                         .hand_total_rect
                         .map(|r| r.height())
-                        .unwrap_or_default() + animated_keyboard_offset,
+                        .unwrap_or_default()
+                        + animated_virtual_keyboard_offset,
                 ),
             );
         error_area.show(ui.ctx(), |ui| {
