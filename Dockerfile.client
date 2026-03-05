@@ -23,7 +23,8 @@ RUN mkdir -p /tmp/binaryen \
     && rm -rf /tmp/binaryen /tmp/binaryen.tar.gz
 
 # ---- Node (pinned major) ----
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+ARG NODE_VERSION=24
+RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
