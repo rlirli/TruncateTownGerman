@@ -30,7 +30,7 @@ impl ActiveGame {
         let companion_space = 220.0;
 
         let mut keyboard_offset = 0.0;
-        if self.depot.ui_state.is_mobile && self.depot.ui_state.dictionary_focused {
+        if self.depot.ui_state.is_mobile && self.depot.ui_state.is_touch && self.depot.ui_state.dictionary_focused {
             keyboard_offset = 320.0; 
         }
         let animated_keyboard_offset = ui.ctx().animate_value_with_time(
