@@ -7,7 +7,6 @@ Build dict with `cargo run --release`.
 ## Requirements
 
 The following files must be created:
-
 - `dict_builder/support_data/en_word_freqs.txt`
   - Sourced from https://github.com/hermitdave/FrequencyWords/blob/master/content/2018/en/en_full.txt
 - `dict_builder/support_data/wordnik_wordlist.txt`
@@ -28,7 +27,7 @@ Reference your new file from `load_additions()` or `load_removals()` in `main.rs
 The current Truncate dictionary can be seen inside `final_wordlist.txt`. Excerpt:
 
 ```
-aa 10656 1.0000
+a 10656 1.0000
 aah 10656 0.9993
 aalii 10656 0.0000
 ```
