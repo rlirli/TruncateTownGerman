@@ -52,12 +52,28 @@ module.exports = function () {
         "license_url": "https://creativecommons.org/licenses/by-sa/3.0/"
       },
       {
-        "name": "Wiktextract: Wiktionary as Machine-Readable Structured Data",
+        "name": "Wiktextract: English Wiktionary as Machine-Readable Structured Data",
         "url": "https://kaikki.org/dictionary/English/index.html",
         "author": "Tatu Ylonen / Kaikki.org",
         "author_url": "https://kaikki.org/",
         "license": "CC BY-SA 3.0",
         "license_url": "https://creativecommons.org/licenses/by-sa/3.0/"
+      },
+      {
+        "name": "Wiktextract: German Wiktionary as Machine-Readable Structured Data",
+        "url": "https://kaikki.org/dewiktionary/Deutsch/index.html",
+        "author": "Tatu Ylonen / Kaikki.org",
+        "author_url": "https://kaikki.org/",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0/"
+      },
+      {
+        "name": "FrequencyWords",
+        "url": "https://github.com/hermitdave/FrequencyWords/tree/master",
+        "author": "Hermit Dave",
+        "author_url": "https://github.com/hermitdave",
+        "license": "MIT",
+        "license_url": "https://github.com/hermitdave/FrequencyWords/blob/master/LICENSE"
       }
     ],
     code_assets: [
