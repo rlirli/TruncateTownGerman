@@ -32,6 +32,20 @@ RUN rustup target add wasm32-unknown-unknown
 RUN mkdir /app
 WORKDIR /app
 
+# ADD all source files FIRST (GitHub Actions cache stays valid if files don't change)
+ADD Cargo.toml Cargo.lock /app/
+ADD truncate_dueller /app/truncate_dueller
+ADD truncate_core /app/truncate_core
+ADD truncate_server /app/truncate_server
+ADD truncate_client /app/truncate_client
+ADD dict_builder /app/dict_builder
+ADD web_client /app/web_client
+ADD .backstage /app/.backstage
+
+RUN chmod +x .backstage/build-web-client.sh
+ENV TRUNC_OPT=true
+
+# Add the dynamic Commit Metadata LAST (This layer will change every commit)
 ARG TR_COMMIT
 ENV TR_COMMIT=$TR_COMMIT
 ARG TR_MSG
@@ -39,17 +53,7 @@ ENV TR_MSG=$TR_MSG
 ARG TR_ENV
 ENV TR_ENV=$TR_ENV
 
-ADD truncate_server /app/truncate_server
-ADD truncate_client /app/truncate_client
-ADD truncate_dueller /app/truncate_dueller
-ADD truncate_core /app/truncate_core
-ADD dict_builder /app/dict_builder
-ADD Cargo.* /app
-
-ADD web_client /app/web_client
-ADD .backstage /app/.backstage
-RUN chmod +x .backstage/build-web-client.sh
-ENV TRUNC_OPT=true
+# This command uses the ENV vars above, so it will re-run on every commit
 RUN .backstage/build-web-client.sh
 
 # Thin Docker image for runtime
