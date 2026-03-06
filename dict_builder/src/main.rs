@@ -11,6 +11,11 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIter
 
 const WORD_DEFINITIONS_PATH: &str = "../word_definitions/words_with_definitions.txt";
 const OBJECTIONABLE_PATH: &str = "../word_definitions/objectionable.json";
+const ADDITION_TRANCHES_PATHS: &[&str] = &[
+    "support_data/tranche_german_1_add.txt",
+    "../word_definitions/extensions/pokemon/output_pokemon_wordlist.txt",
+];
+const REMOVAL_TRANCHES_PATHS: &[&str] = &["support_data/tranche_german_1_del.txt"];
 
 type WordFrequency = usize;
 
@@ -163,18 +168,14 @@ fn load_valid_german_words() -> BTreeSet<String> {
 fn load_additions() -> BTreeSet<String> {
     println!("Loading additional data from files");
 
-    let files = [
-        "support_data/tranche_german_1_add.txt",
-        "support_data/tranche_pokemon_add.txt",
-    ]
-    .map(|f| {
-        File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(f))
-            .expect("add files should exist")
-    });
-
     BTreeSet::from_iter(
-        files
+        ADDITION_TRANCHES_PATHS
             .iter()
+            .map(|f| {
+                File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(f)).expect(&format!(
+                    "Addition wordlist file {f} should exist in dict_builder/"
+                ))
+            })
             .flat_map(|f| io::BufReader::new(f).lines().flatten())
             .map(|line| normalize_german_umlauts(&line)),
     )
@@ -183,14 +184,14 @@ fn load_additions() -> BTreeSet<String> {
 fn load_removals() -> BTreeSet<String> {
     println!("Loading removal data from files");
 
-    let files = ["support_data/tranche_german_1_del.txt"].map(|f| {
-        File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(f))
-            .expect("del files should exist")
-    });
-
     BTreeSet::from_iter(
-        files
+        REMOVAL_TRANCHES_PATHS
             .iter()
+            .map(|f| {
+                File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(f)).expect(&format!(
+                    "Removal wordlist file {f} should exist in dict_builder/"
+                ))
+            })
             .flat_map(|f| io::BufReader::new(f).lines().flatten())
             .map(|line| normalize_german_umlauts(&line)),
     )

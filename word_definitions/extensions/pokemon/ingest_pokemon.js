@@ -3,10 +3,13 @@
  * from PokéAPI to amend word_definitions/ and dict_builder/ output.
  *
  * Outputs:
- *   - output_pokemon_wordlist.txt: cleaned names for dict_builder/support_data/tranche_pokemon_add.txt
- *   - Inserts definitions into local_defs.db
+ *   - Inserts word definitions into local_defs.db (for local development)
+ *   - output_pokemon_wordlist.txt: cleaned names formatted for dict_builder/
+ *   - (only if `--release` flag used) Inserts word definitions into defs.db.gz (production server database)
  *
- * Usage: node ingest_pokemon.js
+ * Usage:
+ *   - node ingest_pokemon.js
+ *   - node ingest_pokemon.js --release
  */
 
 const fs = require('fs');
@@ -20,7 +23,6 @@ const LOCAL_DB_PATH = path.join(__dirname, '../../local_defs.db');
 const RELEASE_DB_GZ_PATH = path.join(__dirname, '../../defs.db.gz');
 const RELEASE_DB_PATH = path.join(__dirname, '../../defs.db');
 const NAMES_OUTPUT = path.join(__dirname, 'output_pokemon_wordlist.txt');
-const TRANCHE_OUTPUT = path.join(__dirname, '../../../dict_builder/support_data/tranche_pokemon_add.txt');
 
 const RELEASE_MODE = process.argv.includes('--release');
 
@@ -227,19 +229,12 @@ async function main() {
         }
     }
 
-    // 1. Write output_pokemon_wordlist.txt to use in dict_builder/
+    // 1. Write output_pokemon_wordlist.txt to be used by dict_builder
     const nameLines = validPokemon.map(p => p.cleanedName);
     const namesContent = nameLines.join('\n') + '\n';
     fs.writeFileSync(NAMES_OUTPUT, namesContent);
     console.log(`\nWrote ${nameLines.length} names to ${NAMES_OUTPUT}`);
 
-    // Copy to dict_builder only in release mode
-    if (RELEASE_MODE) {
-        fs.writeFileSync(TRANCHE_OUTPUT, namesContent);
-        console.log(`Wrote ${nameLines.length} names to ${TRANCHE_OUTPUT}`);
-    } else {
-        console.log(`Skipping dict_builder output (use --release to update ${path.basename(TRANCHE_OUTPUT)})`);
-    }
 
     // 2. Insert into local_defs.db
     await insertIntoDb(LOCAL_DB_PATH, validPokemon);
@@ -285,8 +280,7 @@ async function main() {
     console.log(`Release mode: ${RELEASE_MODE ? 'YES' : 'no'}`);
     console.log(`\nNext steps:`);
     if (!RELEASE_MODE) {
-        console.log(`\t>  Run with --release to automatically update shared wordlists and database.`);
-        console.log(`\t   (OR manually: copy ${path.basename(NAMES_OUTPUT)} into ${path.relative(__dirname, TRANCHE_OUTPUT)})`);
+        console.log(`\t> Run with --release to update the production database (defs.db.gz).`);
     }
     console.log(`\t> cd dict_builder && cargo run --release`);
 }
