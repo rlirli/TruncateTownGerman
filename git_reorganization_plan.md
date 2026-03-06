@@ -2,6 +2,7 @@
 
 ## Todo Before Publishing
 
+- **Better filenames for downloaded files**: Change setup-data.sh and .rs files to use more descriptive file paths. All german files should begin with `de_`.
 - **Educate me about env best practice**: I'm familiar with .env files of course. But not about where to manage it. There's of course the VPS itself which i can SSH into. Then GitHub Actins env variables. Then those in docker-compose.yml. (docker-compose.yml doesn't necessarily need to be inside the repository itself. It needs to be copied to the VPS anyways, since the github action performs: `command="cd /opt/containers/game-truncate && docker compose pull && docker compose up -d` from `/home/github_deploy/.ssh/authorized_keys`) -- There might certainly be other best practices for env management in my scenario.
 - **List all env vars**: List all env vars (and things that should be) and their purpose and when they are required (runtime, build, build of WHAT?).
 - **Sanitize Environment Variables**: Extract production URLs from `web_client/src/_data/env.js` and `web_client/src/_includes/page.html`. Use `.env` substitution in the frontend pipeline so `truncate.igbekele.de` is not hardcoded.
@@ -41,83 +42,107 @@ via partition_point to drop build times exponentially.
 - **Files affected**: `dict_builder/src/main.rs` (ONLY the performance optimizations, keep the english/german specific path changes separated if possible)
 
 ```text
-ci: optimize Docker image builds and setup Docker Compose infrastructure
+ci: Setup Docker Compose infrastructure
 ```
 
-- **Files affected**: `Dockerfile.client`, `Dockerfile.citadel`, `docker-compose.yaml`.
+- **Files affected**: `docker-compose.yaml`.
 - **Note**: Should contain the _clean_ (non-hardcoded) compose file.
 
+**==> MAYBE WE SHOULD EXCLUDE docker-compose.yaml completely from REPO?**
+
 ```text
-ci: configure continuous deployment workflows
+ci: Optimize Docker image builds
+```
+
+- **Files affected**: `Dockerfile.client`, `Dockerfile.citadel`.
+
+```text
+ci: Configure GitHub Actions workflows for continuous deployment
 ```
 
 - **Files affected**: `.github/workflows/deploy-citadel.yml`, `.github/workflows/deploy-client.yml`, `.github/workflows/deploy.yml`, `.github/workflows/outpost.yml`, `.github/workflows/release.yml`
 
 ```text
-chore(dict): script German frequency and rank data acquisition
+feat(word_definitions): Adapt Wiktextract processor for German word definitions
 ```
 
-- **Files affected**: `dict_builder/setup_data.sh`, `.gitignore` (add rules for data artifacts like `*.7z`, `*.csv`, `de_full.txt`)
+- **Files affected**: `word_definitions/build_sq.js` (including path changes and cleanGermanWord, but not yet objectionable_pos), `.gitignore` (add rules for Wiktextract data), `web_client/src/_data/credits.js`
 
 ```text
-feat(core): adapt letter bag frequencies and values for German language
+feat(word_definitions): Exclude abbreviations, syllables, etc. from word definitions
 ```
 
-- **Files affected**: `truncate_core/src/bag.rs`
+- **Files affected**: `word_definitions/build_sq.js` (additions to `objectionable_pos`)
 
-```text
-feat(dict): create font character validation utility
+```
+build(word_definitions): Generate German definition database for production server
 ```
 
-- **Files affected**: `word_definitions/check_font_chars.js`
+- **Files affected**: `word_definitions/defs.db.gz`, `word_definitions/words_with_definitions.txt`
 
 ```text
-feat(ui): replace primary font to support German umlauts
+feat(dict_builder): Add setup script for German word frequency support data
 ```
 
-- **Files affected**: `truncate_client/font/m5x7.ttf`, `web_client/src/_data/credits.js` (Only the font attribution piece)
+- **Files affected**: `dict_builder/setup_support_data.sh`, `.gitignore` (add rules for new german support data), `web_client/src/_data/credits.js`
 
 ```text
-feat(dict): adapt Wiktextract definition processor for German data
-```
-
-- **Files affected**: `word_definitions/build_sq.js`
-
-```text
-feat(dict): adapt dictionary builder rules for German words
+feat(dict_builder): Adapt dictionary builder rules for German words
 ```
 
 - **Files affected**: `dict_builder/src/main.rs` (The path changes, German rules logic), `dict_builder/README.md`
 
 ```text
-feat(data): extend definitions with Pokémon Generation 1+2
+chore(dict_builder): Purge English inclusion/exclusion tranches
 ```
 
-- **Files affected**: `word_definitions/extensions/pokemon/ingest_pokemon.js`, `word_definitions/extensions/pokemon/output_pokemon_wordlist.txt`, `word_definitions/extensions/pokemon/license.txt`, `word_definitions/package.json` (scripts related to this), `dict_builder/src/main.rs` (addition to `ADDITION_TRANCHES_PATHS`)
+- **Files affected**: `dict_builder/support_data/tranche_1_add.txt` (deleted), `dict_builder/support_data/tranche_2_add.txt` (deleted), `dict_builder/support_data/tranche_3_add.txt` (deleted), `dict_builder/support_data/tranche_3_del.txt` (deleted), `dict_builder/support_data/tranche_german_1_add.txt` (created/kept empty), `dict_builder/support_data/tranche_german_1_del.txt` (created/kept empty)
 
 ```text
-feat(data): apply initial German inclusion/exclusion tranches
+build(dict_builder): Generate final German wordlist
 ```
 
-- **Files affected**: `dict_builder/support_data/tranche_1_add.txt` (deleted), `dict_builder/support_data/tranche_2_add.txt` (deleted), `dict_builder/support_data/tranche_3_add.txt` (deleted), `dict_builder/support_data/tranche_3_del.txt` (deleted), `dict_builder/support_data/tranche_german_1_add.txt` (created/kept empty), `dict_builder/support_data/tranche_german_1_del.txt` (created)
+- **Files affected**: `dict_builder/final_wordlist.txt`
 
 ```text
-build: generate final German wordlist and definition database
+feat(core): Adapt letter bag frequencies and values for German language
 ```
 
-- **Files affected**: `dict_builder/final_wordlist.txt`, `word_definitions/defs.db.gz`
+- **Files affected**: `truncate_core/src/bag.rs`
+
+```text
+feat: Create font character validation utility
+```
+
+- **Files affected**: `word_definitions/check_font_chars.js`
+
+```text
+feat(ui): Replace primary font to support German umlauts
+```
+
+- **Files affected**: `truncate_client/font/m5x7.ttf`, `web_client/src/_data/credits.js` (Only the font attribution piece)
 
 ```text
 feat(ui): update credits and dynamically bind environment URL
 ```
 
-- **Files affected**: `web_client/src/_data/credits.js` (Remaining attribution lines), `web_client/src/_includes/page.html` (Environment variable binding instead of hard-coded server)
+==> **THIS SHOULD BE ANALYSED FURTHER, AND LIKELY DONE EARLIER**
+
+- **Files affected**: `web_client/src/_includes/page.html` (Environment variable binding instead of hard-coded server)
 
 ```text
 fix: miscellaneous upstream connection and routing changes
 ```
 
+==> **THIS SHOULD BE ANALYSED FURTHER, AND LIKELY DONE EARLIER**
+
 - **Files affected**: `truncate_server/src/main.rs`, `truncate_client/src/app_outer.rs`, `truncate_client/src/lib.rs`, `truncate_client/src/main.rs` (Assuming these are related to minor URL bindings in the client routing or auth, based on standard patterns in the repo)
+
+```text
+feat: Add Pokémon Generation 1+2 to wordlist and definitions
+```
+
+- **Files affected**: `word_definitions/extensions/pokemon/ingest_pokemon.js`, `word_definitions/extensions/pokemon/output_pokemon_wordlist.txt`, `word_definitions/extensions/pokemon/license.txt`, `word_definitions/package.json` (scripts related to this), `dict_builder/src/main.rs` (addition to `ADDITION_TRANCHES_PATHS`)
 
 ## Current Diff Stat vs origin/main
 
@@ -132,7 +157,7 @@ fix: miscellaneous upstream connection and routing changes
  Dockerfile.client                                  |    118 +-
  dict_builder/README.md                             |     60 +-
  dict_builder/final_wordlist.txt                    | 363829 ++++++++++++------
- dict_builder/setup_data.sh                         |     95 +
+ dict_builder/setup_support_data.sh                         |     95 +
  dict_builder/src/main.rs                           |    438 +-
  dict_builder/support_data/tranche_1_add.txt        |     48 -
  dict_builder/support_data/tranche_2_add.txt        |   3787 -
