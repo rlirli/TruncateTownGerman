@@ -2,7 +2,7 @@
   "name": "word-definitions",
   "private": true,
   "scripts": {
-    "start": "rm -f defs.db.gz && node build_sq.js && gzip defs.db"
+    "start": "rm -f defs.db.gz && node build_sq.js && gzip defs.db && node fetch_pokemon.js --release"
   },
   "license": "CC-BY-SA",
   "dependencies": {

@@ -278,7 +278,9 @@ async function main() {
     console.log(`Valid names: ${validPokemon.length}`);
     console.log(`Skipped: ${skippedPokemon.length}`);
     console.log(`Release mode: ${RELEASE_MODE ? 'YES' : 'no'}`);
-    console.log(`\nNext step: cd dict_builder && cargo run`);
+    console.log(`\nNext steps:`);
+    console.log(`\t1. copy word_definitions/pokemon_names.txt to dict_builder/support_data/tranche_german_1_add.txt`);
+    console.log(`\t2. cd dict_builder && cargo run`);
 }
 
 main().catch(err => {
