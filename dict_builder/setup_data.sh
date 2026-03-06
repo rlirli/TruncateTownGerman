@@ -9,15 +9,20 @@ cd support_data
 # Define file constants
 DE_FULL_FILE="de_full.txt"
 DECOW_7Z_FILE="decow_wordfreq_cistem.csv.7z"
+DEWIKI_ZIP_FILE="de_wiki_wordrank.zip"
+DEWIKI_TXT_FILE="de_wiki_wordrank.txt"
 
 # Define URLs
 DE_FULL_URL="https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/de/de_full.txt"
 DECOW_7Z_URL="https://nlp-data-filestorage.s3.eu-central-1.amazonaws.com/word-frequencies/decow_wordfreq_cistem.csv.7z"
+DEWIKI_ZIP_URL="https://github.com/gambolputty/dewiki-wordrank/raw/main/result.zip"
 
 # Initialize summary tracking
 SUMMARY_DE_FULL="Already present"
 SUMMARY_DECOW_7Z="Already present"
 SUMMARY_DECOW_CSV="Already present"
+SUMMARY_DEWIKI_ZIP="Already present"
+SUMMARY_DEWIKI_TXT="Already present"
 
 STATUS="Success"
 
@@ -40,6 +45,8 @@ print_summary() {
     printf "%-30s | %s\n" "de_full.txt" "$SUMMARY_DE_FULL"
     printf "%-30s | %s\n" "decow...cistem.csv.7z" "$SUMMARY_DECOW_7Z"
     printf "%-30s | %s\n" "decow...cistem.csv" "$SUMMARY_DECOW_CSV"
+    printf "%-30s | %s\n" "de_wiki_wordrank.zip" "$SUMMARY_DEWIKI_ZIP"
+    printf "%-30s | %s\n" "de_wiki_wordrank.txt" "$SUMMARY_DEWIKI_TXT"
     echo "============================================="
 }
 
@@ -64,6 +71,21 @@ if command -v 7z &> /dev/null; then
     SUMMARY_DECOW_CSV="Extracted/Present"
 else
     handle_error "7z command not found. Please install p7zip."
+fi
+
+echo "Checking $DEWIKI_ZIP_FILE..."
+if [ ! -f "$DEWIKI_ZIP_FILE" ]; then
+    echo "Downloading $DEWIKI_ZIP_FILE..."
+    curl -L "$DEWIKI_ZIP_URL" -o "$DEWIKI_ZIP_FILE" || handle_error "Failed to download $DEWIKI_ZIP_FILE"
+    SUMMARY_DEWIKI_ZIP="Fetched"
+fi
+
+echo "Extracting $DEWIKI_ZIP_FILE..."
+if [ ! -f "$DEWIKI_TXT_FILE" ]; then
+    unzip -p "$DEWIKI_ZIP_FILE" result.txt > "$DEWIKI_TXT_FILE" || handle_error "Failed to extract $DEWIKI_TXT_FILE"
+    SUMMARY_DEWIKI_TXT="Extracted"
+else
+    SUMMARY_DEWIKI_TXT="Already present"
 fi
 
 print_summary

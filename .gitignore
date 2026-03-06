@@ -24,4 +24,6 @@ dict_builder/support_data/wordnik_wordlist.txt
 dict_builder/support_data/decow_wordfreq_cistem.csv
 dict_builder/support_data/decow_wordfreq_cistem.txt
 dict_builder/support_data/decow_wordfreq_cistem.csv.7z
+dict_builder/support_data/de_wiki_wordrank.zip
+dict_builder/support_data/de_wiki_wordrank.txt
 .backstage/package-lock.json

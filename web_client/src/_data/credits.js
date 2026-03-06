@@ -82,6 +82,14 @@ module.exports = function () {
         "author_url": "https://rolandschaefer.net/",
         "license": "CC BY 4.0",
         "license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "name": "German Wikipedia Word Rankings",
+        "url": "https://github.com/gambolputty/dewiki-wordrank",
+        "author": "gambolputty",
+        "author_url": "https://github.com/gambolputty",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/"
       }
     ],
     code_assets: [

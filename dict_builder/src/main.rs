@@ -21,7 +21,7 @@ struct FrequencyConfig {
     skip_first_line: bool,
 }
 
-const WORD_FREQUENCY_CORPORA: [FrequencyConfig; 2] = [
+const WORD_FREQUENCY_CORPORA: [FrequencyConfig; 3] = [
     FrequencyConfig {
         path: "support_data/de_full.txt",
         min_word_frequency: 5,
@@ -33,6 +33,12 @@ const WORD_FREQUENCY_CORPORA: [FrequencyConfig; 2] = [
         min_word_frequency: 50,
         separator: ',',
         skip_first_line: true,
+    },
+    FrequencyConfig {
+        path: "support_data/de_wiki_wordrank.txt",
+        min_word_frequency: 25,
+        separator: '\t',
+        skip_first_line: false,
     },
 ];
 
