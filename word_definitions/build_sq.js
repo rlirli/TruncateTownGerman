@@ -42,6 +42,7 @@ const objectionable_tags = [
     "slur",
 ];
 
+// see all pos in https://gist.githubusercontent.com/jacopofar/277dd2290b99ca70d559f66514db5e73/raw/49cfc2e618b175a255158b8ae7d75c7547e4a4ed/wiktextract_schema.json
 const objectionable_pos = [
     "abbrev",
     "phrase",
@@ -176,9 +177,9 @@ rl.on('close', () => {
     console.log(`• Sorting words`);
     const keys = Object.keys(words).sort();
 
-    console.log(`• Writing valid_german_words.txt`);
+    console.log(`• Writing words_with_definitions.txt`);
     const valid_words = keys.map(k => k.replace(/_tr$/, ''));
-    fs.writeFileSync(`valid_german_words.txt`, valid_words.join('\n'));
+    fs.writeFileSync(`words_with_definitions.txt`, valid_words.join('\n'));
 
     console.log(`• Writing words`);
     const output_db = new sqlite3.Database('defs.db');

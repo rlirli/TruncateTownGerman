@@ -9,7 +9,7 @@ use std::{
 use dashmap::DashMap;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
-const WORD_DEFINITIONS_PATH: &str = "../word_definitions/valid_german_words.txt";
+const WORD_DEFINITIONS_PATH: &str = "../word_definitions/words_with_definitions.txt";
 const OBJECTIONABLE_PATH: &str = "../word_definitions/objectionable.json";
 
 type WordFrequency = usize;
