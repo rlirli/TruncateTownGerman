@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     fs::{self, File},
     io::{self, BufRead},
     ops::AddAssign,
@@ -7,10 +7,7 @@ use std::{
 };
 
 use dashmap::DashMap;
-use rayon::iter::{
-    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
-    IntoParallelRefMutIterator, ParallelIterator,
-};
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 /// Words with a frequency count below this threshold are excluded from the dictionary.
 const MIN_WORD_FREQUENCY: usize = 5;
@@ -47,42 +44,42 @@ fn should_include_word(word: &String, word_frequency: WordFrequency) -> bool {
     return true;
 }
 
-fn load_word_frequencies() -> BTreeMap<String, f32> {
+/// Load word frequencies and candidate word list in a single pass over the frequency file.
+/// This avoids reading de_full.txt twice.
+fn load_frequencies_and_candidates() -> (BTreeMap<String, f32>, BTreeSet<String>) {
     println!("Loading word frequencies from file");
     let frequency_file =
         File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(WORD_FREQUENCIES_PATH)).expect(
             &format!("{WORD_FREQUENCIES_PATH} file should exist. Run ./setup_data.sh first!"),
         );
-    let frequency_lines = io::BufReader::new(frequency_file)
+    let frequency_lines: Vec<String> = io::BufReader::new(frequency_file)
         .lines()
         .flatten()
-        .collect::<Vec<_>>();
+        .collect();
 
+    let total_words = frequency_lines.len() as f32;
     let mut frequency_lookup: BTreeMap<String, f32> = BTreeMap::new();
+    let mut candidate_word_list: BTreeSet<String> = BTreeSet::new();
 
     // Word frequencies are listed in order,
     // so we can just use enumerate() for the rankings
-    let mut frequencies = frequency_lines
-        .into_par_iter()
-        .enumerate()
-        .map(|(i, wf)| {
-            let (word, _) = wf
-                .split_once(' ')
-                .expect("Word frequencies are well formed");
-            (normalize_german_umlauts(word), i as f32)
-        })
-        .collect::<Vec<_>>();
+    for (i, line) in frequency_lines.into_iter().enumerate() {
+        let (word, count_str) = line
+            .split_once(' ')
+            .expect("Word frequencies are well formed");
+        let cleaned = normalize_german_umlauts(word);
+        let freq = (total_words - i as f32) / total_words;
+        frequency_lookup.insert(cleaned.clone(), freq);
 
-    let total_words = frequencies.len() as f32;
-    frequencies.par_iter_mut().for_each(|(_, v)| {
-        *v = (total_words - *v) / total_words;
-    });
-
-    frequency_lookup.extend(frequencies);
+        let frequency: WordFrequency = count_str.parse().expect("Word frequency count is a number");
+        if should_include_word(&cleaned, frequency) {
+            candidate_word_list.insert(cleaned);
+        }
+    }
 
     println!("Recalculating word frequency counts");
 
-    frequency_lookup
+    (frequency_lookup, candidate_word_list)
 }
 
 fn load_valid_german_words() -> BTreeSet<String> {
@@ -140,42 +137,18 @@ fn load_objectionable() -> Vec<String> {
     serde_json::from_slice(&input[..]).expect("objectionable.json should be the expected JSON")
 }
 
-fn score_extension(target: &String, larger_word: &String) -> Option<usize> {
-    if larger_word <= target {
-        return None;
+fn score_extension_value(target_len: usize, larger_len: usize) -> usize {
+    let diff = larger_len - target_len;
+    if diff >= 5 {
+        1
+    } else {
+        (5 - diff).pow(2)
     }
-    if larger_word.starts_with(target) || larger_word.ends_with(target) {
-        let diff = larger_word.len() - target.len();
-        if diff >= 5 {
-            return Some(1);
-        } else {
-            return Some((5 - diff).pow(2));
-        }
-    }
-    None
 }
 
 fn main() {
     println!("Starting the dict builder");
-    let frequency_lookup = load_word_frequencies();
-
-    println!("Loading candidate wordlists");
-    let candidate_file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(WORD_FREQUENCIES_PATH);
-    let candidate_file =
-        File::open(&candidate_file_path).expect(&format!("{WORD_FREQUENCIES_PATH} should exist"));
-    let candidate_lines = io::BufReader::new(candidate_file).lines().flatten();
-
-    let mut candidate_word_list: BTreeSet<String> = BTreeSet::new();
-    candidate_word_list.extend(candidate_lines.filter_map(|line| {
-        let (word, count) = line.split_once(' ').expect("Word frequency well formed");
-        let frequency: WordFrequency = count.parse().expect("Word frequency count is a number");
-        let cleaned = normalize_german_umlauts(word);
-        if should_include_word(&cleaned, frequency) {
-            Some(cleaned)
-        } else {
-            None
-        }
-    }));
+    let (frequency_lookup, candidate_word_list) = load_frequencies_and_candidates();
 
     // To help filter out less desired words, we require words to _also_ be in the list of German word definitions.
     let valid_words = load_valid_german_words();
@@ -203,28 +176,96 @@ fn main() {
         objectionable: bool,
     }
 
-    let backprop_points: DashMap<&String, usize> = DashMap::new();
-    let objectionable = load_objectionable();
+    // Convert BTreeSet to sorted Vec for efficient parallel iteration (cache-friendly layout)
+    let final_wordlist_vec: Vec<String> = final_wordlist.into_iter().cloned().collect();
 
-    let mut scored_word_list = final_wordlist
+    // Pre-build a reversed-word index for suffix lookups: (reversed_word, original_index)
+    // Sorted by reversed_word so we can binary-search for suffix matches.
+    let mut reversed_index: Vec<(String, usize)> = final_wordlist_vec
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            let rev: String = w.chars().rev().collect();
+            (rev, i)
+        })
+        .collect();
+    reversed_index.sort_unstable();
+
+    let backprop_points: DashMap<usize, usize> = DashMap::new();
+    let objectionable: HashSet<String> = load_objectionable().into_iter().collect();
+
+    let mut scored_word_list: Vec<_> = final_wordlist_vec
         .par_iter()
-        .map(|word| {
-            let frequency = frequency_lookup.get(*word).cloned().unwrap_or(0.0);
-            let links: Vec<_> = final_wordlist
+        .enumerate()
+        .map(|(word_idx, word)| {
+            let frequency = frequency_lookup.get(word).cloned().unwrap_or(0.0);
+            let word_len = word.len();
+
+            let mut links: Vec<(usize, usize)> = Vec::new();
+
+            // --- Prefix matches: words that start with `word` ---
+            // Since final_wordlist_vec is sorted, all words starting with `word` are contiguous.
+            let prefix_start = final_wordlist_vec.partition_point(|w| w.as_str() < word.as_str());
+            // Compute exclusive upper bound for the prefix range
+            let mut upper_bytes = word.as_bytes().to_vec();
+            if let Some(last) = upper_bytes.last_mut() {
+                // Safe because all chars are ascii lowercase (max 'z' = 122, +1 = 123 = '{')
+                *last += 1;
+            }
+            let upper_bound = unsafe { String::from_utf8_unchecked(upper_bytes) };
+            let prefix_end =
+                final_wordlist_vec.partition_point(|w| w.as_str() < upper_bound.as_str());
+
+            for (idx, candidate) in final_wordlist_vec[prefix_start..prefix_end]
                 .iter()
-                .filter_map(|w| score_extension(*word, *w).map(|score| (w, score)))
-                .collect();
+                .enumerate()
+            {
+                // candidate.starts_with(word) is always true here, so we just need candidate > word
+                // which means candidate must be strictly longer (since it shares the prefix)
+                if candidate.len() > word_len {
+                    let score = score_extension_value(word_len, candidate.len());
+                    links.push((prefix_start + idx, score));
+                }
+            }
+
+            // --- Suffix matches: words that end with `word` ---
+            // Use the reversed index: if a word ends with `word`, its reverse starts with reverse(`word`).
+            let rev_word: String = word.chars().rev().collect();
+            let suffix_start =
+                reversed_index.partition_point(|(w, _)| w.as_str() < rev_word.as_str());
+            let mut rev_upper_bytes = rev_word.as_bytes().to_vec();
+            if let Some(last) = rev_upper_bytes.last_mut() {
+                *last += 1;
+            }
+            let rev_upper_bound = unsafe { String::from_utf8_unchecked(rev_upper_bytes) };
+            let suffix_end =
+                reversed_index.partition_point(|(w, _)| w.as_str() < rev_upper_bound.as_str());
+
+            for &(_, orig_idx) in &reversed_index[suffix_start..suffix_end] {
+                let candidate = &final_wordlist_vec[orig_idx];
+                // Must be longer (not the word itself), must not already be counted as a prefix match,
+                // and must be lexicographically greater (matching the original score_extension behavior)
+                if candidate.len() > word_len
+                    && candidate.as_str() > word.as_str()
+                    && !candidate.starts_with(word.as_str())
+                {
+                    let score = score_extension_value(word_len, candidate.len());
+                    links.push((orig_idx, score));
+                }
+            }
+
             let substring_score: usize = links.iter().map(|(_, score)| score).sum();
 
-            for (word, _) in links.into_iter() {
+            for (idx, _) in links.into_iter() {
                 _ = backprop_points
-                    .entry(*word)
+                    .entry(idx)
                     .or_default()
                     .add_assign(substring_score);
             }
 
             (
-                *word,
+                word_idx,
+                word,
                 WordData {
                     substring_score,
                     frequency,
@@ -232,20 +273,24 @@ fn main() {
                 },
             )
         })
-        .collect::<BTreeMap<_, _>>();
+        .collect();
+
+    // Sort by word index to maintain alphabetical order
+    scored_word_list.sort_unstable_by_key(|(idx, _, _)| *idx);
 
     println!("Backpropagating word substring scores");
-    scored_word_list.iter_mut().for_each(|(word, data)| {
-        if let Some(pts) = backprop_points.get(word) {
+    for (word_idx, _, data) in scored_word_list.iter_mut() {
+        if let Some(pts) = backprop_points.get(word_idx) {
             data.substring_score += *pts;
         }
-    });
+    }
 
     println!("Formatting the output file");
-    let word_list = scored_word_list
+    let word_list: Vec<String> = scored_word_list
         .into_iter()
         .map(
             |(
+                _,
                 word,
                 WordData {
                     substring_score,
@@ -259,7 +304,7 @@ fn main() {
                 )
             },
         )
-        .collect::<Vec<_>>();
+        .collect();
 
     println!("Writing output file");
 
