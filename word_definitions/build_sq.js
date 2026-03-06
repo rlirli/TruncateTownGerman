@@ -191,6 +191,7 @@ rl.on('close', () => {
 
         output_db.run(`CREATE INDEX index_word ON words (word)`);
 
+        output_db.run(`BEGIN TRANSACTION`);
         for (const key of keys) {
             output_db.run(`INSERT INTO words (word, definitions) VALUES (?, ?)`, [key.replace(/_tr$/, ''), JSON.stringify(words[key])], function (err) {
                 if (err) {
@@ -198,6 +199,7 @@ rl.on('close', () => {
                 }
             });
         }
+        output_db.run(`COMMIT`);
     });
     output_db.close(() => {
         console.log(`\n-------------\n`);
