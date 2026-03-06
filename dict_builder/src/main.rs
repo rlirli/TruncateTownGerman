@@ -9,14 +9,32 @@ use std::{
 use dashmap::DashMap;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
-/// Words with a frequency count below this threshold are excluded from the dictionary.
-const MIN_WORD_FREQUENCY: usize = 5;
-
-const WORD_FREQUENCIES_PATH: &str = "support_data/de_full.txt";
 const WORD_DEFINITIONS_PATH: &str = "../word_definitions/valid_german_words.txt";
 const OBJECTIONABLE_PATH: &str = "../word_definitions/objectionable.json";
 
 type WordFrequency = usize;
+
+struct FrequencyConfig {
+    path: &'static str,
+    min_word_frequency: usize,
+    separator: char,
+    skip_first_line: bool,
+}
+
+const WORD_FREQUENCY_CORPORA: [FrequencyConfig; 2] = [
+    FrequencyConfig {
+        path: "support_data/de_full.txt",
+        min_word_frequency: 5,
+        separator: ' ',
+        skip_first_line: false,
+    },
+    FrequencyConfig {
+        path: "support_data/decow_wordfreq_cistem.csv",
+        min_word_frequency: 50,
+        separator: ',',
+        skip_first_line: true,
+    },
+];
 
 /// Normalize a German word to ASCII lowercase by replacing umlauts with digraphs.
 fn normalize_german_umlauts(word: &str) -> String {
@@ -28,7 +46,11 @@ fn normalize_german_umlauts(word: &str) -> String {
 }
 
 /// Primary determiner for which words do and do not qualify for inclusion in Truncate's validity dictionary.
-fn should_include_word(word: &String, word_frequency: WordFrequency) -> bool {
+fn should_include_word(
+    word: &String,
+    word_frequency: WordFrequency,
+    min_word_frequency: usize,
+) -> bool {
     // One-letter words in Truncate can be a surprise, exclude them.
     if word.len() < 2 {
         return false;
@@ -38,46 +60,77 @@ fn should_include_word(word: &String, word_frequency: WordFrequency) -> bool {
         return false;
     }
     // Filter out words that are too rare in the frequency corpus
-    if word_frequency < MIN_WORD_FREQUENCY {
+    if word_frequency < min_word_frequency {
         return false;
     }
-    return true;
+    true
 }
 
-/// Load word frequencies and candidate word list in a single pass over the frequency file.
-/// This avoids reading de_full.txt twice.
-fn load_frequencies_and_candidates() -> (BTreeMap<String, f32>, BTreeSet<String>) {
-    println!("Loading word frequencies from file");
-    let frequency_file =
-        File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(WORD_FREQUENCIES_PATH)).expect(
-            &format!("{WORD_FREQUENCIES_PATH} file should exist. Run ./setup_data.sh first!"),
-        );
-    let frequency_lines: Vec<String> = io::BufReader::new(frequency_file)
-        .lines()
-        .flatten()
-        .collect();
-
-    let total_words = frequency_lines.len() as f32;
+/// Load word frequencies from configured files, and return merged frequencies and candidate list.
+fn load_frequencies_and_candidates(
+    valid_words: &BTreeSet<String>,
+) -> (BTreeMap<String, f32>, BTreeSet<String>) {
     let mut frequency_lookup: BTreeMap<String, f32> = BTreeMap::new();
     let mut candidate_word_list: BTreeSet<String> = BTreeSet::new();
 
-    // Word frequencies are listed in order,
-    // so we can just use enumerate() for the rankings
-    for (i, line) in frequency_lines.into_iter().enumerate() {
-        let (word, count_str) = line
-            .split_once(' ')
-            .expect("Word frequencies are well formed");
-        let cleaned = normalize_german_umlauts(word);
-        let freq = (total_words - i as f32) / total_words;
-        frequency_lookup.insert(cleaned.clone(), freq);
+    for config in WORD_FREQUENCY_CORPORA.iter() {
+        println!("Loading word frequencies from {}", config.path);
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(config.path);
+        let Ok(file) = File::open(&path) else {
+            println!(
+                "Warning: Could not open {}. Did you run setup_data.sh?",
+                config.path
+            );
+            continue;
+        };
 
-        let frequency: WordFrequency = count_str.parse().expect("Word frequency count is a number");
-        if should_include_word(&cleaned, frequency) {
+        // Stream the file to keep memory usage low.
+        let mut raw_counts = Vec::new();
+        let mut valid_matched_words = Vec::new();
+
+        let mut lines = io::BufReader::new(file).lines().flatten();
+
+        if config.skip_first_line {
+            lines.next(); // Skip header
+        }
+
+        for line in lines {
+            let Some((word, count_str)) = line.split_once(config.separator) else {
+                continue;
+            };
+            let Ok(raw_count) = count_str.trim().parse::<usize>() else {
+                continue;
+            };
+
+            raw_counts.push(raw_count);
+
+            let cleaned = normalize_german_umlauts(word);
+            if should_include_word(&cleaned, raw_count, config.min_word_frequency) {
+                // To keep peak memory memory optimization, only keep strings that are in our valid words dictionary
+                if valid_words.contains(&cleaned) {
+                    valid_matched_words.push((cleaned, raw_count));
+                }
+            }
+        }
+
+        println!("Recalculating frequency ranks for {}", config.path);
+        raw_counts.sort_unstable(); // Sort ASC for binary search
+        let total_words = raw_counts.len() as f32;
+
+        for (cleaned, raw_count) in valid_matched_words {
+            // Find how many words have a strictly smaller count
+            let rank = raw_counts.partition_point(|&c| c < raw_count);
+            let freq = rank as f32 / total_words;
+
+            // Merge keeping the maximum relative frequency
+            frequency_lookup
+                .entry(cleaned.clone())
+                .and_modify(|e| *e = f32::max(*e, freq))
+                .or_insert(freq);
+
             candidate_word_list.insert(cleaned);
         }
     }
-
-    println!("Recalculating word frequency counts");
 
     (frequency_lookup, candidate_word_list)
 }
@@ -148,10 +201,12 @@ fn score_extension_value(target_len: usize, larger_len: usize) -> usize {
 
 fn main() {
     println!("Starting the dict builder");
-    let (frequency_lookup, candidate_word_list) = load_frequencies_and_candidates();
 
     // To help filter out less desired words, we require words to _also_ be in the list of German word definitions.
     let valid_words = load_valid_german_words();
+
+    let (frequency_lookup, candidate_word_list) = load_frequencies_and_candidates(&valid_words);
+
     let mut final_wordlist: BTreeSet<_> = valid_words.intersection(&candidate_word_list).collect();
 
     println!(

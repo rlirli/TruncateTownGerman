@@ -74,6 +74,14 @@ module.exports = function () {
         "author_url": "https://github.com/hermitdave",
         "license": "MIT",
         "license_url": "https://github.com/hermitdave/FrequencyWords/blob/master/LICENSE"
+      },
+      {
+        "name": "DECOW16 Word Frequency List",
+        "url": "https://rolandschaefer.net/cow-corpora/",
+        "author": "Roland Schäfer and Felix Bildhauer",
+        "author_url": "https://rolandschaefer.net/",
+        "license": "CC BY 4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/"
       }
     ],
     code_assets: [

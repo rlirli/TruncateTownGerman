@@ -21,4 +21,7 @@ dict_builder/support_data/de_full.txt
 dict_builder/support_data/de_50k.txt
 dict_builder/support_data/objectionable.json
 dict_builder/support_data/wordnik_wordlist.txt
+dict_builder/support_data/decow_wordfreq_cistem.csv
+dict_builder/support_data/decow_wordfreq_cistem.txt
+dict_builder/support_data/decow_wordfreq_cistem.csv.7z
 .backstage/package-lock.json
