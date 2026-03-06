@@ -4,6 +4,7 @@ use std::{
     io::{self, BufRead},
     ops::AddAssign,
     path::PathBuf,
+    time::Instant,
 };
 
 use dashmap::DashMap;
@@ -100,6 +101,7 @@ fn load_frequencies_and_candidates(
             lines.next(); // Skip header
         }
 
+        let start_time = Instant::now();
         for line in lines {
             let Some((word, count_str)) = line.split_once(config.separator) else {
                 continue;
@@ -110,14 +112,19 @@ fn load_frequencies_and_candidates(
 
             raw_counts.push(raw_count);
 
-            let cleaned = normalize_german_umlauts(word);
-            if should_include_word(&cleaned, raw_count, config.min_word_frequency) {
-                // To keep peak memory memory optimization, only keep strings that are in our valid words dictionary
-                if valid_words.contains(&cleaned) {
-                    valid_matched_words.push((cleaned, raw_count));
+            // Frequency count threshold Check (before normalization)
+            if raw_count >= config.min_word_frequency {
+                // NORMALIZE
+                let cleaned = normalize_german_umlauts(word);
+                if should_include_word(&cleaned, raw_count, config.min_word_frequency) {
+                    // To keep peak memory memory optimization, only keep strings that are in our valid words dictionary
+                    if valid_words.contains(&cleaned) {
+                        valid_matched_words.push((cleaned, raw_count));
+                    }
                 }
             }
         }
+        println!("Loaded in {:?}", start_time.elapsed());
 
         println!("Recalculating frequency ranks for {}", config.path);
         raw_counts.sort_unstable(); // Sort ASC for binary search
@@ -213,6 +220,11 @@ fn main() {
 
     let (frequency_lookup, candidate_word_list) = load_frequencies_and_candidates(&valid_words);
 
+    println!("Total frequency lookup size: {}", frequency_lookup.len());
+    println!("Total candidate list size: {}", candidate_word_list.len());
+    std::process::exit(0);
+
+    /*
     let mut final_wordlist: BTreeSet<_> = valid_words.intersection(&candidate_word_list).collect();
 
     println!(
@@ -373,4 +385,5 @@ fn main() {
     let output_file_contents = word_list.join("\n");
 
     fs::write(output_file_path, output_file_contents).expect("Output file should be writable");
+    */
 }
