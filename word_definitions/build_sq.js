@@ -42,6 +42,27 @@ const objectionable_tags = [
     "slur",
 ];
 
+const objectionable_pos = [
+    "abbrev",
+    "phrase",
+    "prep_phrase",
+    "adv_phrase",
+    "proverb",
+    "character",
+    "symbol",
+    "punct",
+    "romanization",
+    "affix",
+    "prefix",
+    "suffix",
+    "infix",
+    "interfix",
+    "circumfix",
+    "combining_form",
+    "root",
+    "syllable",
+];
+
 const cleanGermanWord = (word) => {
     return word.toLowerCase()
         .replace(/ä/g, 'ae')
@@ -58,6 +79,12 @@ const writeWord = (word_json) => {
         skipped += 1;
         return;
     };
+
+    // Skip entries with objectionable parts of speech (e.g. abbreviations)
+    if (objectionable_pos.includes(word_json.pos)) {
+        skipped += 1;
+        return;
+    }
 
     const out_obj = {
         word: cleaned_word,
