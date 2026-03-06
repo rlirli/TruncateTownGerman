@@ -1,0 +1,5 @@
+Pokémon and Pokédex data in this folder is sourced from PokéAPI (https://pokeapi.co/).
+
+PokéAPI's source code and API are licensed under the BSD 3-Clause License (https://github.com/PokeAPI/pokeapi/blob/master/LICENSE.md).
+
+Pokémon and Pokémon character names are trademarks of Nintendo.

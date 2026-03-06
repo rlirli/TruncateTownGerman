@@ -163,7 +163,11 @@ fn load_valid_german_words() -> BTreeSet<String> {
 fn load_additions() -> BTreeSet<String> {
     println!("Loading additional data from files");
 
-    let files = ["support_data/tranche_german_1_add.txt"].map(|f| {
+    let files = [
+        "support_data/tranche_german_1_add.txt",
+        "support_data/tranche_pokemon_add.txt",
+    ]
+    .map(|f| {
         File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(f))
             .expect("add files should exist")
     });
