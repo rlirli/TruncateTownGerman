@@ -30,13 +30,42 @@ Reference your new file from `load_additions()` or `load_removals()` in `main.rs
 The current Truncate dictionary can be seen inside `final_wordlist.txt`. Excerpt:
 
 ```
-a 10656 1.0000
-aah 10656 0.9993
-aalii 10656 0.0000
+festmahls 702 0.8921
+festnageln 1495 0.9839
+festnahme 711 0.9921
 ```
 
 Leftmost is the valid word, lowercase.
 In the middle is a heuristic score of how extensible this word is, used by the NPC for evaluating gameplay.
 Rightmost is a word frequency from 0 → 1, used to filter what words the NPC "knows" when playing.
 
-This file is compiled into the client, hence the lack of definitions, which must be sourced from the server database.
+### Column 1 — Word
+
+The valid word in lowercase ASCII (umlauts replaced: ä→ae, ö→oe, ü→ue, ß→ss).
+Words prefixed with `*` are flagged as objectionable and will not be played by the NPC.
+
+### Column 2 — Extensibility Score
+
+A heuristic measuring how many other dictionary words can be formed by adding letters to the beginning or end of this word. **Higher = more useful for gameplay.**
+
+The NPC uses this to evaluate board positions — words with high extensibility are strategically valuable because they can be extended into longer words.
+
+Scoring formula per extension:
+
+- Extending by 1 letter: 16 points (= (5−1)²)
+- Extending by 2 letters: 9 points
+- Extending by 3 letters: 4 points
+- Extending by 4 letters: 1 point
+- Extending by 5+ letters: 1 point
+
+A word's score is the sum across all valid extensions, plus "backpropagated" points from words that it itself extends. For example, `festnageln` (1495) scores high because many words start or end with it, while `festmahls` (702) has fewer connections.
+
+### Column 3 — Word Frequency
+
+A normalized value from `0.0` to `1.0` representing how common the word is in everyday German text (sourced from web corpus frequency data). **Higher = more common.**
+
+The NPC uses this to decide which words it "knows" — at lower difficulty levels it only plays common (high-frequency) words, and at higher difficulty it has access to rarer ones.
+
+---
+
+This file is compiled directly into the game client. Word definitions are not included here — they are served separately from the server database.
