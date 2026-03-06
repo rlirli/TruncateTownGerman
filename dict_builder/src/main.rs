@@ -8,11 +8,21 @@ use std::{
 
 use dashmap::DashMap;
 use rayon::iter::{
-    IntoParallelRefIterator,
-    ParallelIterator,
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
+    IntoParallelRefMutIterator, ParallelIterator,
 };
 
-fn clean_german_word(word: &str) -> String {
+/// Words with a frequency count below this threshold are excluded from the dictionary.
+const MIN_WORD_FREQUENCY: usize = 5;
+
+const WORD_FREQUENCIES_PATH: &str = "support_data/de_full.txt";
+const WORD_DEFINITIONS_PATH: &str = "../word_definitions/valid_german_words.txt";
+const OBJECTIONABLE_PATH: &str = "../word_definitions/objectionable.json";
+
+type WordFrequency = usize;
+
+/// Normalize a German word to ASCII lowercase by replacing umlauts with digraphs.
+fn normalize_german_umlauts(word: &str) -> String {
     word.to_lowercase()
         .replace("ä", "ae")
         .replace("ö", "oe")
@@ -20,84 +30,113 @@ fn clean_german_word(word: &str) -> String {
         .replace("ß", "ss")
 }
 
-fn load_german_data() -> (BTreeMap<String, f32>, BTreeSet<String>) {
-    println!("Loading words and frequencies from de_full.txt");
-    let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("support_data/de_full.txt");
-    let file = File::open(file_path).expect("de_full.txt file should exist");
-    
-    let lines = io::BufReader::new(file).lines().flatten().collect::<Vec<_>>();
-    
-    let mut frequency_lookup = BTreeMap::new();
-    let mut word_set = BTreeSet::new();
-    
-    let total_words = lines.len() as f32;
-    for (i, line) in lines.into_iter().enumerate() {
-        let (word, _) = line.split_once(' ').expect("Word frequency well formed");
-        let cleaned = clean_german_word(word);
-        
-        if cleaned.chars().count() < 2 {
-            continue;
-        }
-        
-        if !cleaned.chars().all(|c| c.is_ascii_lowercase()) {
-            continue;
-        }
-
-        let freq = (total_words - i as f32) / total_words;
-        frequency_lookup.insert(cleaned.clone(), freq);
-        word_set.insert(cleaned);
+/// Primary determiner for which words do and do not qualify for inclusion in Truncate's validity dictionary.
+fn should_include_word(word: &String, word_frequency: WordFrequency) -> bool {
+    // One-letter words in Truncate can be a surprise, exclude them.
+    if word.len() < 2 {
+        return false;
     }
-    
-    (frequency_lookup, word_set)
+    // Truncate is ASCII-only — this also helps cut out proper names and words with punctuation
+    if !word.chars().all(|c| c.is_ascii_lowercase()) {
+        return false;
+    }
+    // Filter out words that are too rare in the frequency corpus
+    if word_frequency < MIN_WORD_FREQUENCY {
+        return false;
+    }
+    return true;
+}
+
+fn load_word_frequencies() -> BTreeMap<String, f32> {
+    println!("Loading word frequencies from file");
+    let frequency_file =
+        File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(WORD_FREQUENCIES_PATH)).expect(
+            &format!("{WORD_FREQUENCIES_PATH} file should exist. Run ./setup_data.sh first!"),
+        );
+    let frequency_lines = io::BufReader::new(frequency_file)
+        .lines()
+        .flatten()
+        .collect::<Vec<_>>();
+
+    let mut frequency_lookup: BTreeMap<String, f32> = BTreeMap::new();
+
+    // Word frequencies are listed in order,
+    // so we can just use enumerate() for the rankings
+    let mut frequencies = frequency_lines
+        .into_par_iter()
+        .enumerate()
+        .map(|(i, wf)| {
+            let (word, _) = wf
+                .split_once(' ')
+                .expect("Word frequencies are well formed");
+            (normalize_german_umlauts(word), i as f32)
+        })
+        .collect::<Vec<_>>();
+
+    let total_words = frequencies.len() as f32;
+    frequencies.par_iter_mut().for_each(|(_, v)| {
+        *v = (total_words - *v) / total_words;
+    });
+
+    frequency_lookup.extend(frequencies);
+
+    println!("Recalculating word frequency counts");
+
+    frequency_lookup
+}
+
+fn load_valid_german_words() -> BTreeSet<String> {
+    println!("Loading valid German words from file");
+    let file = File::open(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(WORD_DEFINITIONS_PATH),
+    )
+    .expect(&format!("{WORD_DEFINITIONS_PATH} should exist. Make sure to run `npm start` in word_definitions/ first!"));
+
+    BTreeSet::from_iter(
+        io::BufReader::new(file)
+            .lines()
+            .flatten()
+            .map(|line| normalize_german_umlauts(&line)),
+    )
 }
 
 fn load_additions() -> BTreeSet<String> {
     println!("Loading additional data from files");
 
-    let files = [
-        "support_data/tranche_german_1_add.txt"
-    ]
-    .map(|f| {
+    let files = ["support_data/tranche_german_1_add.txt"].map(|f| {
         File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(f))
             .expect("add files should exist")
     });
 
-    let mut set = BTreeSet::new();
-    for f in files {
-        for line in io::BufReader::new(f).lines().flatten() {
-            let cleaned = clean_german_word(&line);
-            if cleaned.chars().count() >= 2 && cleaned.chars().all(|c| c.is_ascii_lowercase()) {
-                set.insert(cleaned);
-            }
-        }
-    }
-    set
+    BTreeSet::from_iter(
+        files
+            .iter()
+            .flat_map(|f| io::BufReader::new(f).lines().flatten())
+            .map(|line| normalize_german_umlauts(&line)),
+    )
 }
 
 fn load_removals() -> BTreeSet<String> {
     println!("Loading removal data from files");
 
-    let files = [
-        "support_data/tranche_german_1_del.txt"
-    ].map(|f| {
+    let files = ["support_data/tranche_german_1_del.txt"].map(|f| {
         File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(f))
             .expect("del files should exist")
     });
 
-    let mut set = BTreeSet::new();
-    for f in files {
-        for line in io::BufReader::new(f).lines().flatten() {
-            let cleaned = clean_german_word(&line);
-            set.insert(cleaned);
-        }
-    }
-    set
+    BTreeSet::from_iter(
+        files
+            .iter()
+            .flat_map(|f| io::BufReader::new(f).lines().flatten())
+            .map(|line| normalize_german_umlauts(&line)),
+    )
 }
 
 fn load_objectionable() -> Vec<String> {
-    let input =
-        fs::read(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../word_definitions/objectionable.json"))
-            .expect("../word_definitions/objectionable.json should exist");
+    let input = fs::read(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(OBJECTIONABLE_PATH),
+    )
+    .expect(&format!("{OBJECTIONABLE_PATH} should exist. Make sure to run `npm start` in word_definitions/ first!"));
     serde_json::from_slice(&input[..]).expect("objectionable.json should be the expected JSON")
 }
 
@@ -116,33 +155,39 @@ fn score_extension(target: &String, larger_word: &String) -> Option<usize> {
     None
 }
 
-fn load_valid_german_words() -> std::collections::HashSet<String> {
-    println!("Loading valid German words from dictionary generation list");
-    let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../word_definitions/valid_german_words.txt");
-    
-    let file = File::open(file_path).expect("valid_german_words.txt should exist. Make sure to run `npm start` in word_definitions first!");
-    
-    io::BufReader::new(file)
-        .lines()
-        .flatten()
-        .map(|line| clean_german_word(&line))
-        .filter(|w| w.chars().count() >= 2 && w.chars().all(|c| c.is_ascii_lowercase()))
-        .collect()
-}
-
 fn main() {
     println!("Starting the dict builder");
-    let (frequency_lookup, mut final_wordlist) = load_german_data();
+    let frequency_lookup = load_word_frequencies();
 
-    // Filter list using actual definitions
+    println!("Loading candidate wordlists");
+    let candidate_file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(WORD_FREQUENCIES_PATH);
+    let candidate_file =
+        File::open(&candidate_file_path).expect(&format!("{WORD_FREQUENCIES_PATH} should exist"));
+    let candidate_lines = io::BufReader::new(candidate_file).lines().flatten();
+
+    let mut candidate_word_list: BTreeSet<String> = BTreeSet::new();
+    candidate_word_list.extend(candidate_lines.filter_map(|line| {
+        let (word, count) = line.split_once(' ').expect("Word frequency well formed");
+        let frequency: WordFrequency = count.parse().expect("Word frequency count is a number");
+        let cleaned = normalize_german_umlauts(word);
+        if should_include_word(&cleaned, frequency) {
+            Some(cleaned)
+        } else {
+            None
+        }
+    }));
+
+    // To help filter out less desired words, we require words to _also_ be in the list of German word definitions.
     let valid_words = load_valid_german_words();
-    let initial_count = final_wordlist.len();
-    final_wordlist.retain(|word| valid_words.contains(word));
-    println!("Filtered out {} words lacking a real definition.", initial_count - final_wordlist.len());
+    let mut final_wordlist: BTreeSet<_> = valid_words.intersection(&candidate_word_list).collect();
+
+    println!(
+        "Filtered out {} words lacking a real definition.",
+        candidate_word_list.len() - final_wordlist.len()
+    );
 
     let additions = load_additions();
-    final_wordlist.extend(additions.into_iter());
+    final_wordlist.extend(additions.iter());
 
     let removals = load_removals();
     for removal in removals {
@@ -158,33 +203,28 @@ fn main() {
         objectionable: bool,
     }
 
-    // Convert BTreeSet to Vec for efficient parallel iteration
-    let final_wordlist_vec: Vec<String> = final_wordlist.into_iter().collect();
-
     let backprop_points: DashMap<&String, usize> = DashMap::new();
-    let objectionable: std::collections::HashSet<String> = load_objectionable().into_iter().collect();
+    let objectionable = load_objectionable();
 
-    let mut scored_word_list = final_wordlist_vec
+    let mut scored_word_list = final_wordlist
         .par_iter()
         .map(|word| {
-            let frequency = frequency_lookup.get(word).cloned().unwrap_or(0.99);
-
-            let links: Vec<_> = final_wordlist_vec
+            let frequency = frequency_lookup.get(*word).cloned().unwrap_or(0.0);
+            let links: Vec<_> = final_wordlist
                 .iter()
-                .filter_map(|w| score_extension(word, w).map(|score| (w, score)))
+                .filter_map(|w| score_extension(*word, *w).map(|score| (w, score)))
                 .collect();
-            
             let substring_score: usize = links.iter().map(|(_, score)| score).sum();
 
-            for (w, score) in links.into_iter() {
+            for (word, _) in links.into_iter() {
                 _ = backprop_points
-                    .entry(w)
+                    .entry(*word)
                     .or_default()
-                    .add_assign(score);
+                    .add_assign(substring_score);
             }
 
             (
-                word.clone(),
+                *word,
                 WordData {
                     substring_score,
                     frequency,
