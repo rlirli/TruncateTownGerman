@@ -52,6 +52,10 @@ ci: Setup Docker Compose infrastructure
 
 ```text
 ci: Optimize Docker image builds
+
+Also:
+- Pin Rust to v1.93.1
+- Update Node from v18 to v24.
 ```
 
 - **Files affected**: `Dockerfile.client`, `Dockerfile.citadel`.
