@@ -275,7 +275,7 @@ impl ActiveGame {
                                     } else {
                                         self.depot.ui_state.dictionary_open = true;
                                         self.depot.ui_state.dictionary_focused = true; // original author leaves set false
-                                        // directly enter typing mode, effectively hiding the "Search" placeholder string
+                                                                                       // directly enter typing mode, effectively hiding the "Search" placeholder string
                                         self.depot.ui_state.dictionary_opened_by_keyboard = true;
                                     }
                                 }
@@ -318,8 +318,17 @@ impl ActiveGame {
             );
         });
 
-        self.depot.regions.hand_total_rect = Some(resp.response.rect);
+        // ORIGINAL:
+        // self.depot.regions.hand_total_rect = Some(resp.response.rect);
 
-        (Some(resp.response.rect), msg)
+        // (Some(resp.response.rect), msg)
+
+        // MODIFIED Version: To keep game_space_ui unaffected by the virtual keyboard offset
+        // Basically a CSS equivalent of applying `transform: translateY(-320px)`.
+        let mut layout_rect = resp.response.rect;
+        layout_rect.set_top(layout_rect.top() + animated_virtual_keyboard_offset);
+
+        self.depot.regions.hand_total_rect = Some(layout_rect);
+        (Some(layout_rect), msg)
     }
 }
