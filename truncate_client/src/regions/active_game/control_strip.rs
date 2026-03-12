@@ -44,7 +44,7 @@ impl ActiveGame {
         let animated_virtual_keyboard_offset = ui.ctx().animate_value_with_time(
             egui::Id::new("virtual_keyboard_offset"),
             virtual_keyboard_offset,
-            self.depot.aesthetics.theme.animation_time,
+            self.depot.aesthetics.theme.animation_time * 2.0,
         );
 
         let mut control_anchor = if !matches!(self.depot.ui_state.game_header, HeaderType::None) {
