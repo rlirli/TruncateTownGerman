@@ -304,14 +304,13 @@ impl ActiveGame {
         if !self.depot.audio.muted {
             // Play the turn sound if the player has changed
             if self.depot.gameplay.next_player_number != next_player_number {
-                use eframe::wasm_bindgen::JsCast;
+                use eframe::wasm_bindgen::JsValue;
 
                 let window = web_sys::window().expect("window should exist in browser");
-                let document = window.document().expect("documnt should exist in window");
-                if let Some(element) = document.query_selector("#tr_move").unwrap() {
-                    if let Ok(audio) = element.dyn_into::<web_sys::HtmlAudioElement>() {
-                        // TODO: Rework audio, as this sound often gets filtered out from headphones
-                        _ = audio.play().expect("Audio should be playable");
+                if let Ok(play_fn) = js_sys::Reflect::get(&window, &JsValue::from_str("playMoveSound")) {
+                    if play_fn.is_function() {
+                        let play_func: js_sys::Function = play_fn.into();
+                        _ = play_func.call0(&window);
                     }
                 }
             }

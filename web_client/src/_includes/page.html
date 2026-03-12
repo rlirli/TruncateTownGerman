@@ -372,8 +372,39 @@
             </dialog>
         </div>
 
-        <audio id="tr_move" src="/static/move.mp3"></audio>
+        <script>
+            let audioCtx;
+            let moveSoundBuffer;
 
+            window.playMoveSound = async function() {
+                if (!audioCtx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioContext) return; // Browser doesn't support Web Audio API
+                    audioCtx = new AudioContext();
+                }
+
+                // Resume context if suspended (required by some browsers before user interaction)
+                if (audioCtx.state === 'suspended') {
+                    await audioCtx.resume();
+                }
+
+                if (!moveSoundBuffer) {
+                    try {
+                        const response = await fetch('/static/move.mp3');
+                        const arrayBuffer = await response.arrayBuffer();
+                        moveSoundBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                    } catch (e) {
+                        console.error('Failed to load move sound:', e);
+                        return;
+                    }
+                }
+
+                const source = audioCtx.createBufferSource();
+                source.buffer = moveSoundBuffer;
+                source.connect(audioCtx.destination);
+                source.start();
+            };
+        </script>
         <script
             defer
             src="/static/truncate_client.js?commit={{ env.commit }}"
