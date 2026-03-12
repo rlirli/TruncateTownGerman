@@ -2,13 +2,15 @@
 
 ## Todo Before Publishing
 
-- **Better filenames for downloaded files**: Change setup-data.sh and .rs files to use more descriptive file paths. All german files should begin with `de_`.
-- **Educate me about env best practice**: I'm familiar with .env files of course. But not about where to manage it. There's of course the VPS itself which i can SSH into. Then GitHub Actins env variables. Then those in docker-compose.yml. (docker-compose.yml doesn't necessarily need to be inside the repository itself. It needs to be copied to the VPS anyways, since the github action performs: `command="cd /opt/containers/game-truncate && docker compose pull && docker compose up -d` from `/home/github_deploy/.ssh/authorized_keys`) -- There might certainly be other best practices for env management in my scenario.
-- **List all env vars**: List all env vars (and things that should be) and their purpose and when they are required (runtime, build, build of WHAT?).
-- **Sanitize Environment Variables**: Extract production URLs from `web_client/src/_data/env.js` and `web_client/src/_includes/page.html`. Use `.env` substitution in the frontend pipeline so `truncate.igbekele.de` is not hardcoded.
-- **Sanitize `docker-compose.yaml`**: The current file hardcodes `SIGNING_SECRET` and Postgres credentials. Move these into a ???`.env` file??? and use interpolation (e.g. `SIGNING_SECRET=${SIGNING_SECRET}`).
-- **Update READMEs**
-- **Virtual Keyboard Shift**: Start dev client locally exposed on local network so i can inspect keyboard shift better on my phone.
+- [ ] **Auto-open VirtualKeyboard on mobile**: When opening the dictionary, mobile user still needs to click into Search bar manually. Annoying.
+- [ ] **Game sounds pause music playback**: When game sounds are played (e.g. after tile placement), music playback is paused. This is not desired.
+- [ ] **Better filenames for downloaded files**: Change setup-data.sh and .rs files to use more descriptive file paths. All german files should begin with `de_`.
+- [ ] **Educate me about env best practice**: I'm familiar with .env files of course. But not about where to manage it. There's of course the VPS itself which i can SSH into. Then GitHub Actins env variables. Then those in docker-compose.yml. (docker-compose.yml doesn't necessarily need to be inside the repository itself. It needs to be copied to the VPS anyways, since the github action performs: `command="cd /opt/containers/game-truncate && docker compose pull && docker compose up -d` from `/home/github_deploy/.ssh/authorized_keys`) -- There might certainly be other best practices for env management in my scenario.
+- [ ] **List all env vars**: List all env vars (and things that should be) and their purpose and when they are required (runtime, build, build of WHAT?).
+- [ ] **Sanitize Environment Variables**: Extract production URLs from `web_client/src/_data/env.js` and `web_client/src/_includes/page.html`. Use `.env` substitution in the frontend pipeline so `truncate.igbekele.de` is not hardcoded.
+- [ ] **Sanitize `docker-compose.yaml`**: The current file hardcodes `SIGNING_SECRET` and Postgres credentials. Move these into a ???`.env` file??? and use interpolation (e.g. `SIGNING_SECRET=${SIGNING_SECRET}`).
+- [ ] **Update READMEs**
+- [x] DONE **Virtual Keyboard Shift**: Start dev client locally exposed on local network so i can inspect keyboard shift better on my phone.
 
 ## Proposed Commit Split (WIP)
 
